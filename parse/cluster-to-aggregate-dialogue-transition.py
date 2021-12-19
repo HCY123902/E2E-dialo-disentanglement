@@ -67,11 +67,11 @@ if __name__ == '__main__':
 
             cluster_map = {}
             for j in range(i, i + number_of_sample_turns):
+                turn_text = text[time][j]
                 if turn_text[:3] == "===":
                     # Discard system message
                     continue
-                
-                turn_text = text[time][j]
+
                 assert turn_text[0] == "<"
                 speaker_turn_text = turn_text.split(">", 1)
                 speaker = speaker_turn_text[0][1:]
