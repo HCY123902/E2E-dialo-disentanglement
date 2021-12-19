@@ -31,7 +31,7 @@ if __name__ == '__main__':
         print("current raw file is {}".format(filename))
         time = (filename.split("/")[-1]).split(".")[0]
         for line in open(filename):
-            print("parsed time is {}".format(time))
+            # print("parsed time is {}".format(time))
             if line[0] == '[':
                 parts = line.split("]")
                 #filename = parts[0]
@@ -44,6 +44,7 @@ if __name__ == '__main__':
     dialogues = []
     smallest_cluster_number = 1000
     largest_cluster_number = 0
+    average_cluster_number = 0
 
     for time in clusters:
         sortable_clusters = []
@@ -72,7 +73,7 @@ if __name__ == '__main__':
                     # Discard system message
                     continue
 
-                if turn_text[0] == "<":
+                if turn_text[0] != "<":
                     print(turn_text)
                     continue
 
@@ -87,17 +88,21 @@ if __name__ == '__main__':
                     cluster_map[turn_to_cluster_map[j]] = 1
 
             if len(cluster_map) > 15:
-                print("There is a sample with {} clusters containing messages in time {} from {} to {}".format(len(cluster_map), time, i, i + number_of_sample_turns))
+                print("There is a sample with {} clusters containing messages at time {} from {} to {}".format(len(cluster_map), time, i, i + number_of_sample_turns))
             if len(cluster_map) < smallest_cluster_number:
                 smallest_cluster_number = len(cluster_map)
             if len(cluster_map) > largest_cluster_number:
                 largest_cluster_number = len(cluster_map)
+            average_cluster_number = average_cluster_number + len(cluster_map)
 
             dialogues.append(sample)
-
+    
+    average_cluster_number = average_cluster_number / len(dialogues)
+    
     print("The number of samples is {}".format(len(dialogues)))
     print("The smallest cluster number is {}".format(smallest_cluster_number))
-    print("The largest cluster number is {}".format(smallest_cluster_number))
+    print("The largest cluster number is {}".format(largest_cluster_number))
+    print("The average cluster number is {}".format(average_cluster_number))
 
     json.dump(dialogues, result)
 
