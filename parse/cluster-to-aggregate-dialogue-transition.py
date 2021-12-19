@@ -61,7 +61,7 @@ if __name__ == '__main__':
 
 
         for i in range(1000, number_of_turns, 50):
-            number_of_sample_turns = max(50, number_of_turns - i)
+            number_of_sample_turns = min(50, number_of_turns - i)
             start_cluster = min([turn_to_cluster_map[turn_position] for turn_position in range(i, i + number_of_sample_turns)])
             sample = []
 
@@ -72,7 +72,10 @@ if __name__ == '__main__':
                     # Discard system message
                     continue
 
-                assert turn_text[0] == "<"
+                if turn_text[0] == "<":
+                    print(turn_text)
+                    continue
+
                 speaker_turn_text = turn_text.split(">", 1)
                 speaker = speaker_turn_text[0][1:]
 
