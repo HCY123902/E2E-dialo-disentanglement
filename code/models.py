@@ -26,21 +26,24 @@ class EnsembleModel(nn.Module):
     def forward(self, batch):
         batch_utterances, label_for_loss, labels, utterance_sequence_length, \
                     session_transpose_matrix, state_transition_matrix, session_sequence_length, \
-                        max_conversation_length, loss_mask = batch
+                        max_conversation_length, loss_mask, conversation_lengths, padded_labels = batch
         utterance_repre, shape = self.utterance_encoder(batch_utterances, utterance_sequence_length)
         # [batch_size, max_conversation_length, hidden_size]
         attentive_repre = self.attentive_encoder(batch_utterances, utterance_repre, shape)
-        # [batch_size, max_conversation_length, hidden_size]
-        conversation_repre = self.conversation_encoder(attentive_repre)
-        # [batch_size, max_conversation_length, hidden_size]
-        session_repre = self.session_encoder(attentive_repre, session_transpose_matrix)
-        # [batch_size, 4, max_session_length, hidden_size]
-        state_matrix = self.state_matrix_encoder(attentive_repre, conversation_repre, session_repre, state_transition_matrix, \
-                        max_conversation_length)
-        # [batch_size, max_conversation_length, 5, hidden_size] 
-        softmax_masked_scores = self.scores_calculator(state_matrix, attentive_repre, conversation_repre, max_conversation_length)
-        # [batch_size, max_conversation_length, 5]
-        return softmax_masked_scores
+
+        # # [batch_size, max_conversation_length, hidden_size]
+        # conversation_repre = self.conversation_encoder(attentive_repre)
+        # # [batch_size, max_conversation_length, hidden_size]
+        # session_repre = self.session_encoder(attentive_repre, session_transpose_matrix)
+        # # [batch_size, 4, max_session_length, hidden_size]
+        # state_matrix = self.state_matrix_encoder(attentive_repre, conversation_repre, session_repre, state_transition_matrix, \
+        #                 max_conversation_length)
+        # # [batch_size, max_conversation_length, 5, hidden_size] 
+        # softmax_masked_scores = self.scores_calculator(state_matrix, attentive_repre, conversation_repre, max_conversation_length)
+        # # [batch_size, max_conversation_length, 5]
+        # return softmax_masked_scores
+
+        return attentive_repre
 
 
 class UtteranceEncoder(nn.Module):
