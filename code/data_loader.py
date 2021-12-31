@@ -46,7 +46,7 @@ class TrainDataLoader(object):
 
         # Added
         conversation_lengths = [len(dialogue) for dialogue in utterances]
-        padded_labels = self.convert_to_tensors_label(self.labels_batch[key], batch_size, max_length_1, conversation_lengths)
+        padded_labels = self.convert_to_tensors_label(self.labels_batch[key], batch_size, max_conversation_length, conversation_lengths)
 
 
         return new_utterance_num_numpy, label_for_loss, new_labels, new_utterance_sequence_length, \

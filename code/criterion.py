@@ -29,7 +29,7 @@ class SupConLossNCE(nn.Module):
         device = (torch.device('cuda')
                   if torch.cuda.is_available()
                   else torch.device('cpu'))
-        result = torch.Tensor((features.shape[0],)).to(device)
+        result = torch.zeros(features.shape[0]).to(device)
 
         for i, dialgoue in enumerate(features):
             # Discard padded utterances
@@ -41,8 +41,8 @@ class SupConLossNCE(nn.Module):
             #     raise ValueError('Num of labels does not match num of features')
             mask = torch.eq(dialogue_labels, dialogue_labels.T).float().to(device)
 
-            contrast_feature = features
-            anchor_feature = features
+            contrast_feature = dialgoue
+            anchor_feature = dialgoue
 
             # compute logits
             anchor_dot_contrast = torch.div(
@@ -168,7 +168,7 @@ class SupConLossPrototype(nn.Module):
         device = (torch.device('cuda')
                   if torch.cuda.is_available()
                   else torch.device('cpu'))
-        result = torch.Tensor((features.shape[0],)).to(device)
+        result = torch.zeros(features.shape[0]).to(device)
 
         for i, dialgoue in enumerate(features):
             # Discard padded utterances
@@ -187,14 +187,16 @@ class SupConLossPrototype(nn.Module):
             # state_number, hidden size
             prototypes = torch.Tensor(state_num, features.shape[2]).to(device)
             for k in range(state_num):
-                session = dialgoue[dialogue_labels[i] == k, :]
+                dialogue_label_mask = (dialogue_labels == k).unsqueeze(1).expand(-1, features.shape[2])
+                # session = dialgoue[dialogue_labels[i] == k, :]
+                session = dialgoue[dialogue_label_mask]
                 prototypes[k, :] = session.mean(0)
 
             # Include the entire conversation when calculating the session prototype regardless of the anchor position since the entire conversation will be available in the response ranking task
 
 
             contrast_feature = prototypes
-            anchor_feature = features
+            anchor_feature = dialgoue
 
             # compute logits
             anchor_dot_contrast = torch.div(
