@@ -79,5 +79,5 @@ class TrainDataLoader(object):
         else:
             new_batch = torch.cuda.LongTensor(batch_size, max_length).fill_(-1)
         for i in range(len(batch)):
-            new_batch[i: conversation_lengths[i]] = torch.LongTensor(batch[i])
+            new_batch[i, :conversation_lengths[i]] = torch.LongTensor(batch[i])
         return new_batch
