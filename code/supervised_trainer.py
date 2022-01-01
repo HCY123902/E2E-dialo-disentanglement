@@ -57,24 +57,22 @@ class SupervisedTrainer(object):
 
 
     def _train_batch(self, batch, noise_batch):
-        batch_utterances, label_for_loss, labels, utterance_sequence_length, \
-                    session_transpose_matrix, state_transition_matrix, session_sequence_length, \
-                        max_conversation_length, loss_mask, conversation_length, padded_labels = batch
-        if self.args.model == 'TS':
-            if self.args.add_noise:
-                softmax_masked_scores = self.ensemble_model(noise_batch)
-            else:
-                softmax_masked_scores = self.ensemble_model(batch)
-            teacher_scores, teacher_log_scores = self.teacher_model(batch)
-            # [batch_size, max_conversation_length, 5]
-            loss_kl = self.loss_func(softmax_masked_scores, teacher_scores)
-            loss_1 = self.calculate_loss(softmax_masked_scores, label_for_loss, loss_mask)
-            loss_2 = self.calculate_loss(teacher_log_scores, label_for_loss, loss_mask)
-            loss = loss_1 + loss_kl
-            self.optimizer.zero_grad()
-            loss.backward()
-            self.optimizer.step()
-            return loss_1.data.item(), loss_2.data.item(), loss_kl.data.item(), len(batch_utterances), sum(sum(session_sequence_length))
+        batch_utterances, utterance_sequence_length, conversation_length, padded_labels = batch
+        # if self.args.model == 'TS':
+        #     if self.args.add_noise:
+        #         softmax_masked_scores = self.ensemble_model(noise_batch)
+        #     else:
+        #         softmax_masked_scores = self.ensemble_model(batch)
+        #     teacher_scores, teacher_log_scores = self.teacher_model(batch)
+        #     # [batch_size, max_conversation_length, 5]
+        #     loss_kl = self.loss_func(softmax_masked_scores, teacher_scores)
+        #     loss_1 = self.calculate_loss(softmax_masked_scores, label_for_loss, loss_mask)
+        #     loss_2 = self.calculate_loss(teacher_log_scores, label_for_loss, loss_mask)
+        #     loss = loss_1 + loss_kl
+        #     self.optimizer.zero_grad()
+        #     loss.backward()
+        #     self.optimizer.step()
+        #     return loss_1.data.item(), loss_2.data.item(), loss_kl.data.item(), len(batch_utterances)
         if self.args.model == 'S':
             # if self.args.add_noise:
             #     softmax_masked_scores = self.ensemble_model(noise_batch)
@@ -105,18 +103,18 @@ class SupervisedTrainer(object):
             self.optimizer.step()
             # print("NCE:", loss_1.data.item())
             # print("Prototype:", loss_2.data.item())
-            return loss.data.item(), 0, 0, len(batch_utterances), sum(sum(session_sequence_length))
-        if self.args.model == 'T':
-            if self.args.add_noise:
-                teacher_scores, teacher_log_scores = self.teacher_model(noise_batch)
-            else:
-                teacher_scores, teacher_log_scores = self.teacher_model(batch)
-            loss_2 = self.calculate_loss(teacher_log_scores, label_for_loss, loss_mask)
-            loss = loss_2
-            self.optimizer.zero_grad()
-            loss.backward()
-            self.optimizer.step()
-            return 0, loss_2.data.item(), 0, len(batch_utterances), sum(sum(session_sequence_length))
+            return loss.data.item(), 0, 0, len(batch_utterances)
+        # if self.args.model == 'T':
+        #     if self.args.add_noise:
+        #         teacher_scores, teacher_log_scores = self.teacher_model(noise_batch)
+        #     else:
+        #         teacher_scores, teacher_log_scores = self.teacher_model(batch)
+        #     loss_2 = self.calculate_loss(teacher_log_scores, label_for_loss, loss_mask)
+        #     loss = loss_2
+        #     self.optimizer.zero_grad()
+        #     loss.backward()
+        #     self.optimizer.step()
+        #     return 0, loss_2.data.item(), 0, len(batch_utterances)
 
     def train(self, train_loader, noise_train_loader, dev_loader):
         step_cnt = 0
@@ -140,8 +138,8 @@ class SupervisedTrainer(object):
                     epoch_loss += loss_teacher
                 else:
                     epoch_loss += loss_student
-                log_msg = "Epoch : {}, batch: {}/{}, step: {}, batch student loss: {}, teacher loss: {}, kl loss: {}, uttr avg loss: {}".format(
-                                        epoch, i, len(train_loader), step_cnt, round(loss_student, 4), round(loss_teacher, 4), round(loss_kl, 4), round(loss_student*batch_size/uttr_cnt, 4))
+                log_msg = "Epoch : {}, batch: {}/{}, step: {}, batch student loss: {}, teacher loss: {}, kl loss: {}".format(
+                                        epoch, i, len(train_loader), step_cnt, round(loss_student, 4), round(loss_teacher, 4), round(loss_kl, 4))
                 # log_msg = "Epoch : {}, batch: {}/{}, step: {}, batch student loss: {}, uttr avg loss: {}".format(
                                         # epoch, i, len(train_loader), step_cnt, round(loss_student, 4), round(loss_student*batch_size/uttr_cnt, 4))
                 self.logger.info(log_msg)
@@ -249,24 +247,28 @@ class SupervisedTrainer(object):
         with torch.no_grad():
             for batch in test_loader:
                 batch_utterances, _, labels, utterance_sequence_length, \
-                        _, _, session_sequence_length, max_conversation_length, _, _, _ = batch
-                conversation_length_list = [sum(session_sequence_length[i]) for i in range(len(session_sequence_length))]
+                        _,  _, conversation_length_list, padded_labels = batch
+                # conversation_length_list = [sum(session_sequence_length[i]) for i in range(len(session_sequence_length))]
                 utterance_repre, shape = self.ensemble_model.utterance_encoder(batch_utterances, utterance_sequence_length)
                 attentive_repre = self.ensemble_model.attentive_encoder(batch_utterances, utterance_repre, shape)
 
                 # Added
                 for i in range(attentive_repre.shape[0]):
                     dialogue_embedding = attentive_repre[i, :conversation_length_list[i], :].squeeze(0).cpu()
-                    print("attentive_repre", attentive_repre.shape)
-                    print("dialogue_embedding", dialogue_embedding.shape)
+                    cluster_number = int((conversation_length_list[i] / float(constant.utterance_max_length)) * (constant.state_num))
+                    cluster_label = utils.kmeans(dialogue_embedding, cluster_number)
+                    cluster_label = utils.order_cluster_labels()
+                    predicted_labels.append(cluster_label.tolist())
+
+                    # print("attentive_repre", attentive_repre.shape)
+                    # print("dialogue_embedding", dialogue_embedding.shape)
                     
                     
                     # args = {"num_cluster": [constant.state_num], "gpu": 0, "temperature": constant.temperature}
                     # cluster_result = utils.run_kmeans(dialogue_embedding, args)
                     # predicted_labels.append(cluster_result["im2cluster"].tolist())
                     
-                    cluster_label = utils.kmeans(dialogue_embedding, constant.state_num)
-                    predicted_labels.append(cluster_label.tolist())
+
 
                 # # [batch_size, max_conversation_length, hidden_size]
                 # conversation_repre = self.ensemble_model.conversation_encoder(attentive_repre)
@@ -277,7 +279,7 @@ class SupervisedTrainer(object):
                 # predicted_labels.extend(batch_labels)
 
                 for j in range(len(conversation_length_list)):
-                    truth_labels.append(labels[j][:conversation_length_list[j]].tolist())
+                    truth_labels.append(padded_labels[j][:conversation_length_list[j]].tolist())
                 
         assert len(predicted_labels) == len(truth_labels)
         
@@ -312,10 +314,16 @@ class SupervisedTrainer(object):
 
                 # Added
                 for i in range(attentive_repre.shape[0]):
-                    dialogue_embedding = attentive_repre[i, :, :].cpu()
-                    args = {"num_cluster": [constant.state_num], "gpu": 0, "temperature": constant.temperature}
-                    cluster_result = utils.run_kmeans(dialogue_embedding, args)
-                    predicted_labels.append(cluster_result["im2cluster"].tolist())
+                    # dialogue_embedding = attentive_repre[i, :, :].cpu()
+                    # args = {"num_cluster": [constant.state_num], "gpu": 0, "temperature": constant.temperature}
+                    # cluster_result = utils.run_kmeans(dialogue_embedding, args)
+                    # predicted_labels.append(cluster_result["im2cluster"].tolist())
+
+                    dialogue_embedding = attentive_repre[i, :conversation_length_list[i], :].squeeze(0).cpu()
+                    cluster_number = int((conversation_length_list[i] / float(constant.utterance_max_length)) * (constant.state_num))
+                    cluster_label = utils.kmeans(dialogue_embedding, cluster_number)
+                    cluster_label = utils.order_cluster_labels()
+                    predicted_labels.append(cluster_label.tolist())
                 
                 # # [batch_size, max_conversation_length, hidden_size]
                 # conversation_repre = self.ensemble_model.conversation_encoder(attentive_repre)

@@ -24,9 +24,7 @@ class EnsembleModel(nn.Module):
             self.scores_calculator = ScoresCalculator(softmax_func=nn.LogSoftmax)
     
     def forward(self, batch):
-        batch_utterances, label_for_loss, labels, utterance_sequence_length, \
-                    session_transpose_matrix, state_transition_matrix, session_sequence_length, \
-                        max_conversation_length, loss_mask, conversation_lengths, padded_labels = batch
+        batch_utterances, labels, utterance_sequence_length, conversation_lengths, padded_labels = batch
         utterance_repre, shape = self.utterance_encoder(batch_utterances, utterance_sequence_length)
         # [batch_size, max_conversation_length, hidden_size]
         attentive_repre = self.attentive_encoder(batch_utterances, utterance_repre, shape)
