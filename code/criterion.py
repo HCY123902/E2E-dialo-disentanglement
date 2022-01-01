@@ -3,6 +3,8 @@ from __future__ import print_function
 import torch
 import torch.nn as nn
 
+import constant
+
 class SupConLossNCE(nn.Module):
     """Supervised Contrastive Learning: https://arxiv.org/pdf/2004.11362.pdf.
     It also supports the unsupervised contrastive loss in SimCLR"""
@@ -34,6 +36,9 @@ class SupConLossNCE(nn.Module):
         for i, dialgoue in enumerate(features):
             # Discard padded utterances
             dialgoue = dialgoue[:dialogue_lengths[i], :]
+            
+#             print("Checkpoint alpha", dialgoue)
+
             dialogue_labels = labels[i, :dialogue_lengths[i]]
             dialogue_labels = dialogue_labels.contiguous().view(-1, 1)
             assert dialogue_labels.shape[0] == dialgoue.shape[0]
@@ -43,14 +48,23 @@ class SupConLossNCE(nn.Module):
 
             contrast_feature = dialgoue
             anchor_feature = dialgoue
+            
+            # print(contrast_feature.shape, anchor_feature.shape)
 
             # compute logits
             anchor_dot_contrast = torch.div(
                 torch.matmul(anchor_feature, contrast_feature.T),
                 self.temperature)
+#             print("Checkpoint a", anchor_feature)
+#             print("Checkpoint b", contrast_feature)
+#             print("Checkpoint c", anchor_dot_contrast)
+            
+            
             # for numerical stability
             logits_max, _ = torch.max(anchor_dot_contrast, dim=1, keepdim=True)
             logits = anchor_dot_contrast - logits_max.detach()
+            
+#             print("Checkpoint d", logits)
 
             # tile mask
             # mask = mask.repeat(anchor_count, contrast_count)
@@ -62,19 +76,53 @@ class SupConLossNCE(nn.Module):
                 0
             )
             mask = mask * logits_mask
+            
+            empty_mask = ~torch.all(mask == 0,dim=1)
+            
+            mask = mask[empty_mask]
+            logits_mask = logits_mask[empty_mask]
+            logits = logits[empty_mask]
+            
+            
+            
+#             print("Checkpoint 1 mask", mask)
 
             # compute log_prob
             exp_logits = torch.exp(logits) * logits_mask
+            
+#             print("Checkpoint 2 exp_logits", exp_logits)
+            
             log_prob = logits - torch.log(exp_logits.sum(1, keepdim=True))
+            
+#             print("Checkpoint 3 log_prob", log_prob)
 
             # compute mean of log-likelihood over positive
+#             print("Checkpoint 4 log_prob shape", log_prob.shape)
+#             print("Checkpoint 4 mask * log_prob", mask * log_prob)
+#             print("Checkpoint 4 (mask * log_prob).sum(1)", (mask * log_prob).sum(1))
+
+            
+            
+            
             mean_log_prob_pos = (mask * log_prob).sum(1) / mask.sum(1)
+            
+#             print("Checkpoint 4 mean_log_prob_pos", mean_log_prob_pos)
 
             # loss
             loss = - (self.temperature / self.base_temperature) * mean_log_prob_pos
-            loss = loss.view(1, dialogue_lengths[i]).mean()
+        
+            assert ~torch.any(loss.isnan())
+            
+#             print("Checkpoint 5 loss", loss)
+            
+            loss = loss.view(1, -1).mean()
+            
+#             print("Checkpoint 6 loss", loss)
 
             result[i] = loss
+            
+        print("result", result)
+        print("result mean", result.mean())
 
         return result.mean()
 
@@ -152,7 +200,7 @@ class SupConLossPrototype(nn.Module):
         self.contrast_mode = contrast_mode
         self.base_temperature = base_temperature
 
-    def forward(self, features, dialogue_lengths, labels=None, mask=None, state_num=6):
+    def forward(self, features, dialogue_lengths, labels=None, mask=None):
         """Compute loss for model. If both `labels` and `mask` are None,
         it degenerates to SimCLR unsupervised loss:
         https://arxiv.org/pdf/2002.05709.pdf
@@ -171,30 +219,50 @@ class SupConLossPrototype(nn.Module):
         result = torch.zeros(features.shape[0]).to(device)
 
         for i, dialgoue in enumerate(features):
-            # Discard padded utterances
+            # Discard padded utterances  
             dialgoue = dialgoue[:dialogue_lengths[i], :]
+            # print("Checkpoint 1 dialgoue", dialgoue)
+            
             dialogue_labels = labels[i, :dialogue_lengths[i]]
+            
+            # print("Checkpoint 2 dialogue_labels", dialogue_labels)
+            
+            label_range = int(dialogue_labels.max().item()) + 1
+            
+            # print("Checkpoint 3 largest_label", label_range)
+            
             dialogue_labels = dialogue_labels.contiguous().view(-1, 1)
             assert dialogue_labels.shape[0] == dialgoue.shape[0]
             # if dialogue_labels.shape[0] != batch_size:
             #     raise ValueError('Num of labels does not match num of features')
 
-            prototype_mask = torch.LongTensor(1, state_num).to(device)
-            prototype_mask[0] = torch.LongTensor(range(state_num)).to(device)
+            prototype_mask = torch.LongTensor(1, label_range).to(device)
+            prototype_mask[0] = torch.LongTensor(range(label_range)).to(device)
+            
+            # print("Checkpoint 3 prototype_mask", prototype_mask)
 
             mask = torch.eq(dialogue_labels, prototype_mask).float().to(device)
+            
+            # print("Checkpoint 4 mask", mask)
 
             # state_number, hidden size
-            prototypes = torch.Tensor(state_num, features.shape[2]).to(device)
-            for k in range(state_num):
-                dialogue_label_mask = (dialogue_labels == k).unsqueeze(1).expand(-1, features.shape[2])
+            prototypes = torch.Tensor(label_range, features.shape[2]).to(device)
+            for k in range(label_range):
+                
+                dialogue_label_mask = (dialogue_labels[:, 0] == k).nonzero(as_tuple=True)[0]
+                # print(dialogue_label_mask.shape)
                 # session = dialgoue[dialogue_labels[i] == k, :]
-                session = dialgoue[dialogue_label_mask]
+                # session = dialgoue[dialogue_label_mask]
+                session = dialgoue[dialogue_label_mask, :]
+                # print("Checkpoint 4 dialogue_label_mask", dialogue_label_mask)
+                # print("Checkpoint 4 session", session)
+                # print("Checkpoint 4 session.mean(0)", session.mean(0))
                 prototypes[k, :] = session.mean(0)
 
             # Include the entire conversation when calculating the session prototype regardless of the anchor position since the entire conversation will be available in the response ranking task
 
-
+            # print("Checkpoint 5 prototypes", prototypes)
+            
             contrast_feature = prototypes
             anchor_feature = dialgoue
 
@@ -203,8 +271,13 @@ class SupConLossPrototype(nn.Module):
                 torch.matmul(anchor_feature, contrast_feature.T),
                 self.temperature)
             # for numerical stability
+            
+            # print("Checkpoint 6 anchor_dot_contrast", anchor_dot_contrast)
+            
             logits_max, _ = torch.max(anchor_dot_contrast, dim=1, keepdim=True)
             logits = anchor_dot_contrast - logits_max.detach()
+            
+            # print("Checkpoint 7 logits", logits)
 
             # tile mask
             # mask = mask.repeat(anchor_count, contrast_count)
@@ -219,13 +292,26 @@ class SupConLossPrototype(nn.Module):
 
             # compute log_prob
             exp_logits = torch.exp(logits)
+            
+            # print("Checkpoint 8 exp_logits", exp_logits)
+            
             log_prob = logits - torch.log(exp_logits.sum(1, keepdim=True))
+            
+            # print("Checkpoint 9 log_prob", log_prob)
 
             # compute mean of log-likelihood over positive
+            # print(mask.shape)
+            # print(log_prob.shape)
+            
             mean_log_prob_pos = (mask * log_prob).sum(1) / mask.sum(1)
+            
+            # print("Checkpoint 10 mean_log_prob_pos", mean_log_prob_pos)
 
             # loss
             loss = - (self.temperature / self.base_temperature) * mean_log_prob_pos
+            
+            assert ~torch.any(loss.isnan())
+            
             loss = loss.view(1, dialogue_lengths[i]).mean()
 
             result[i] = loss
