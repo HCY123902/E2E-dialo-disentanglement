@@ -88,15 +88,24 @@ class SupervisedTrainer(object):
             else:
                 attentive_repre = self.ensemble_model(batch)
             # [batch_size, max_conversation_length, 5]
-
+            # print("attentive_repre", attentive_repre.shape)
+            
+            # Added
+            if torch.any(attentive_repre.isnan()):
+                return "skip", 0, 0, 0, 0
+            
+            
             loss_1 = self.calculate_NCE_criterion(attentive_repre, conversation_length, padded_labels)
             loss_2 = self.calculate_prototype_criterion(attentive_repre, conversation_length, padded_labels)
 
             loss = constant.NCE_weightage * loss_1 + (1 - constant.NCE_weightage) * loss_2
+            # loss = loss_2
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
-            return loss_1.data.item(), 0, 0, len(batch_utterances), sum(sum(session_sequence_length))
+            # print("NCE:", loss_1.data.item())
+            # print("Prototype:", loss_2.data.item())
+            return loss.data.item(), 0, 0, len(batch_utterances), sum(sum(session_sequence_length))
         if self.args.model == 'T':
             if self.args.add_noise:
                 teacher_scores, teacher_log_scores = self.teacher_model(noise_batch)
@@ -121,6 +130,12 @@ class SupervisedTrainer(object):
                     noise_batch = None
                 loss_student, loss_teacher, loss_kl, batch_size, uttr_cnt = self._train_batch(batch, noise_batch)
                 # loss_student, batch_size, uttr_cnt = self._train_batch(batch)
+                
+                # Added
+                if loss_student == "skip":
+                    print("Skip the current batch with nan value")
+                    continue
+                
                 if self.args.model == 'T':
                     epoch_loss += loss_teacher
                 else:
@@ -241,12 +256,17 @@ class SupervisedTrainer(object):
 
                 # Added
                 for i in range(attentive_repre.shape[0]):
-                    dialogue_embedding = attentive_repre[i, :, :].cpu()
-                    args = {"num_cluster": [constant.state_num], "gpu": 0, "temperature": constant.temperature}
-                    cluster_result = utils.run_kmeans(dialogue_embedding, args)
-                    predicted_labels.append(cluster_result["im2cluster"].tolist())
-
-
+                    dialogue_embedding = attentive_repre[i, :conversation_length_list[i], :].squeeze(0).cpu()
+                    print("attentive_repre", attentive_repre.shape)
+                    print("dialogue_embedding", dialogue_embedding.shape)
+                    
+                    
+                    # args = {"num_cluster": [constant.state_num], "gpu": 0, "temperature": constant.temperature}
+                    # cluster_result = utils.run_kmeans(dialogue_embedding, args)
+                    # predicted_labels.append(cluster_result["im2cluster"].tolist())
+                    
+                    cluster_label = utils.kmeans(dialogue_embedding, constant.state_num)
+                    predicted_labels.append(cluster_label.tolist())
 
                 # # [batch_size, max_conversation_length, hidden_size]
                 # conversation_repre = self.ensemble_model.conversation_encoder(attentive_repre)
@@ -258,7 +278,13 @@ class SupervisedTrainer(object):
 
                 for j in range(len(conversation_length_list)):
                     truth_labels.append(labels[j][:conversation_length_list[j]].tolist())
+                
         assert len(predicted_labels) == len(truth_labels)
+        
+        for (p, t) in zip(predicted_labels, truth_labels):
+            print(p, len(p))
+            print(t, len(t))
+            assert len(p) == len(t)
 
         utils.save_predicted_results(predicted_labels, truth_labels, self.current_time, step_cnt)
 

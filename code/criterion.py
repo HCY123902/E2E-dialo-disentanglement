@@ -33,21 +33,21 @@ class SupConLossNCE(nn.Module):
                   else torch.device('cpu'))
         result = torch.zeros(features.shape[0]).to(device)
 
-        for i, dialgoue in enumerate(features):
+        for i, dialogue in enumerate(features):
             # Discard padded utterances
-            dialgoue = dialgoue[:dialogue_lengths[i], :]
+            dialogue = dialogue[:dialogue_lengths[i], :]
             
 #             print("Checkpoint alpha", dialgoue)
 
             dialogue_labels = labels[i, :dialogue_lengths[i]]
             dialogue_labels = dialogue_labels.contiguous().view(-1, 1)
-            assert dialogue_labels.shape[0] == dialgoue.shape[0]
+            assert dialogue_labels.shape[0] == dialogue.shape[0]
             # if dialogue_labels.shape[0] != batch_size:
             #     raise ValueError('Num of labels does not match num of features')
             mask = torch.eq(dialogue_labels, dialogue_labels.T).float().to(device)
 
-            contrast_feature = dialgoue
-            anchor_feature = dialgoue
+            contrast_feature = dialogue
+            anchor_feature = dialogue
             
             # print(contrast_feature.shape, anchor_feature.shape)
 
@@ -106,12 +106,16 @@ class SupConLossNCE(nn.Module):
             
             mean_log_prob_pos = (mask * log_prob).sum(1) / mask.sum(1)
             
-#             print("Checkpoint 4 mean_log_prob_pos", mean_log_prob_pos)
 
             # loss
             loss = - (self.temperature / self.base_temperature) * mean_log_prob_pos
-        
-            assert ~torch.any(loss.isnan())
+            
+            if torch.any(loss.isnan()):
+                print("NCE containing nan", loss)
+                print("Corresponding NCE dialogue containing nan", dialogue)
+                # assert ~torch.any(loss.isnan())
+                
+                loss = loss[~loss.isnan()]
             
 #             print("Checkpoint 5 loss", loss)
             
@@ -121,8 +125,8 @@ class SupConLossNCE(nn.Module):
 
             result[i] = loss
             
-        print("result", result)
-        print("result mean", result.mean())
+        print("NCE result", result)
+        print("NCE result mean", result.mean())
 
         return result.mean()
 
@@ -218,9 +222,9 @@ class SupConLossPrototype(nn.Module):
                   else torch.device('cpu'))
         result = torch.zeros(features.shape[0]).to(device)
 
-        for i, dialgoue in enumerate(features):
+        for i, dialogue in enumerate(features):
             # Discard padded utterances  
-            dialgoue = dialgoue[:dialogue_lengths[i], :]
+            dialogue = dialogue[:dialogue_lengths[i], :]
             # print("Checkpoint 1 dialgoue", dialgoue)
             
             dialogue_labels = labels[i, :dialogue_lengths[i]]
@@ -232,7 +236,7 @@ class SupConLossPrototype(nn.Module):
             # print("Checkpoint 3 largest_label", label_range)
             
             dialogue_labels = dialogue_labels.contiguous().view(-1, 1)
-            assert dialogue_labels.shape[0] == dialgoue.shape[0]
+            assert dialogue_labels.shape[0] == dialogue.shape[0]
             # if dialogue_labels.shape[0] != batch_size:
             #     raise ValueError('Num of labels does not match num of features')
 
@@ -253,7 +257,7 @@ class SupConLossPrototype(nn.Module):
                 # print(dialogue_label_mask.shape)
                 # session = dialgoue[dialogue_labels[i] == k, :]
                 # session = dialgoue[dialogue_label_mask]
-                session = dialgoue[dialogue_label_mask, :]
+                session = dialogue[dialogue_label_mask, :]
                 # print("Checkpoint 4 dialogue_label_mask", dialogue_label_mask)
                 # print("Checkpoint 4 session", session)
                 # print("Checkpoint 4 session.mean(0)", session.mean(0))
@@ -264,7 +268,7 @@ class SupConLossPrototype(nn.Module):
             # print("Checkpoint 5 prototypes", prototypes)
             
             contrast_feature = prototypes
-            anchor_feature = dialgoue
+            anchor_feature = dialogue
 
             # compute logits
             anchor_dot_contrast = torch.div(
@@ -310,11 +314,19 @@ class SupConLossPrototype(nn.Module):
             # loss
             loss = - (self.temperature / self.base_temperature) * mean_log_prob_pos
             
-            assert ~torch.any(loss.isnan())
+            if torch.any(loss.isnan()):
+                print("Prototype containing nan", loss)
+                print("Corresponding prototype dialogue containing nan", dialogue)
+                # assert ~torch.any(loss.isnan())
+                
+                loss = loss[~loss.isnan()]
             
             loss = loss.view(1, dialogue_lengths[i]).mean()
 
             result[i] = loss
+            
+        print("Prototype result", result)
+        print("Prototype result mean", result.mean())
 
         return result.mean()
 
