@@ -97,7 +97,6 @@ class SupervisedTrainer(object):
             if torch.any(attentive_repre.isnan()):
                 return "skip", 0, 0, 0, 0
             
-            
             loss_1 = self.calculate_NCE_criterion(attentive_repre, conversation_length, padded_labels)
             loss_2 = self.calculate_prototype_criterion(attentive_repre, conversation_length, padded_labels)
             loss_3 = self.calculate_prototype_k_means_criterion(attentive_repre, conversation_length, padded_labels)
