@@ -21,6 +21,7 @@ save_model_path = "./saved_models/"
 glove_path = "../glove/glove.840B.300d.txt"
 data_path = "../dataset/"
 
-NCE_weightage = 0.5
+NCE_weightage = 0.4
+Sup_weightage = 0.4
 temperature=0.07
 base_temperature=0.07

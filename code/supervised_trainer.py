@@ -1,3 +1,4 @@
+from this import d
 import torch
 import torch.nn as nn
 import torch.nn.functional as F 
@@ -24,6 +25,7 @@ class SupervisedTrainer(object):
         self.loss_func = loss(reduction='batchmean')
         self.SupConLossNCE = criterion.SupConLossNCE(temperature=constant.temperature, base_temperature=constant.base_temperature)
         self.SupConLossPrototype = criterion.SupConLossPrototype(temperature=constant.temperature, base_temperature=constant.base_temperature)
+        self.PrototypeKmeansDivergence = criterion.PrototypeKmeansDivergence()
 
         if optimizer == None:
             if self.args.model == 'T':
@@ -55,6 +57,9 @@ class SupervisedTrainer(object):
     def calculate_prototype_criterion(self, input_, conversation_length, target):
         return self.SupConLossPrototype(input_, conversation_length, target)
 
+    # Added
+    def calculate_prototype_k_means_criterion(self, input_, conversation_length, target):
+        return self.SupConLossPrototype(input_, conversation_length, target)
 
     def _train_batch(self, batch, noise_batch):
         batch_utterances, utterance_sequence_length, conversation_length, padded_labels = batch
@@ -95,8 +100,11 @@ class SupervisedTrainer(object):
             
             loss_1 = self.calculate_NCE_criterion(attentive_repre, conversation_length, padded_labels)
             loss_2 = self.calculate_prototype_criterion(attentive_repre, conversation_length, padded_labels)
+            loss_3 = self.calculate_prototype_k_means_criterion(attentive_repre, conversation_length, padded_labels)
 
-            loss = constant.NCE_weightage * loss_1 + (1 - constant.NCE_weightage) * loss_2
+            # loss = constant.NCE_weightage * loss_1 + (1 - constant.NCE_weightage) * loss_2
+            loss = constant.NCE_weightage * loss_1 + constant.Sup_weightage * loss_2 + (1 - constant.NCE_weightage - constant.Sup_weightage) * loss_3
+
             # loss = loss_2
             self.optimizer.zero_grad()
             loss.backward()
