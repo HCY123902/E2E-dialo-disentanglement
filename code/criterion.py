@@ -416,15 +416,15 @@ class PrototypeKmeansDivergence(nn.Module):
             loss = loss / cnt
             
             if torch.any(loss.isnan()):
-                print("Prototype containing nan", loss)
-                print("Corresponding prototype dialogue containing nan", dialogue)
+                print("Matching containing nan", loss)
+                print("Corresponding matching dialogue containing nan", dialogue)
                 # assert ~torch.any(loss.isnan())
                 
                 loss = loss[~loss.isnan()]
             
             result[i] = loss
             
-        print("Prototype result", result)
-        print("Prototype result mean", result.mean())
+        print("Matching result", result)
+        print("Matching result mean", result.mean())
 
         return result.mean()
