@@ -341,11 +341,6 @@ class SupConLossPrototype(nn.Module):
 class PrototypeKmeansDivergence(nn.Module):
     def __init__(self):
         super(PrototypeKmeansDivergence, self).__init__()
-        self.M = 0
-        self.N = 0
-        self.Map = torch.zeros((constant.state_num, constant.state_num), dtype=int)
-        self.p = torch.zeros(constant.state_num, dtype=int)
-        self.vis = torch.zeros(constant.state_num, dtype=int)
 
     def forward(self, features, dialogue_lengths, labels=None, mask=None):
         device = (torch.device('cuda')
@@ -398,12 +393,14 @@ class PrototypeKmeansDivergence(nn.Module):
 
             # print("Checkpoint 5 prototypes", prototypes)
 
-            cluster_number = int((dialogue_lengths[i] / float(constant.utterance_max_length)) * (constant.state_num))
+            cluster_number = max(int((dialogue_lengths[i] / float(constant.utterance_max_length)) * (constant.state_num)), 1)
             # print("cluster number", cluster_number)
             
-            k_means = KMeans(n_clusters=cluster_number, random_state=0).fit(dialogue.numpy())
+            k_means = KMeans(n_clusters=cluster_number, random_state=0).fit(dialogue.cpu().detach().numpy())
+
+            prototypes_numpy = prototypes.cpu().detach().numpy()
             
-            squared_distance = np.array([[np.linalg.norm(prototype.numpy()-center) for center in k_means.cluster_centers_] for prototype in prototypes])
+            squared_distance = np.array([[np.linalg.norm(prototype-center) for center in k_means.cluster_centers_] for prototype in prototypes_numpy])
 
             row_ind, col_ind = linear_sum_assignment(squared_distance)
             cnt = len(row_ind)

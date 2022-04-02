@@ -26,6 +26,7 @@ class SupervisedTrainer(object):
         self.loss_func = loss(reduction='batchmean')
         self.SupConLossNCE = criterion.SupConLossNCE(temperature=constant.temperature, base_temperature=constant.base_temperature)
         self.SupConLossPrototype = criterion.SupConLossPrototype(temperature=constant.temperature, base_temperature=constant.base_temperature)
+        self.PrototypeKmeansDivergence = criterion.PrototypeKmeansDivergence()
 
         if optimizer == None:
             if self.args.model == 'T':
@@ -56,6 +57,10 @@ class SupervisedTrainer(object):
     # Added
     def calculate_prototype_criterion(self, input_, conversation_length, target):
         return self.SupConLossPrototype(input_, conversation_length, target)
+
+    # Added
+    def calculate_matching_criterion(self, input_, conversation_length, target):
+        return self.PrototypeKmeansDivergence(input_, conversation_length, target)
 
 
     def _train_batch(self, batch, noise_batch):
@@ -97,8 +102,9 @@ class SupervisedTrainer(object):
             
             loss_1 = self.calculate_NCE_criterion(attentive_repre, conversation_length, padded_labels)
             loss_2 = self.calculate_prototype_criterion(attentive_repre, conversation_length, padded_labels)
+            loss_3 = self.calculate_matching_criterion(attentive_repre, conversation_length, padded_labels)
 
-            loss = constant.NCE_weightage * loss_1 + (1 - constant.NCE_weightage) * loss_2
+            loss = constant.NCE_weightage * loss_1 + constant.Prototype_weightage * loss_2 + (1 - constant.NCE_weightage - constant.Prototype_weightage) * loss_3
             # loss = loss_2
             self.optimizer.zero_grad()
             loss.backward()
@@ -258,14 +264,11 @@ class SupervisedTrainer(object):
                     # dialogue_embedding = attentive_repre[i, :conversation_length_list[i], :].squeeze(0).cpu()
                     dialogue_embedding = attentive_repre[i, :conversation_length_list[i], :].cpu()
                     
-                    cluster_number = int((conversation_length_list[i] / float(constant.utterance_max_length)) * (constant.state_num))
-                    
-                    if cluster_number < 1:
-                        cluster_number = 1
+                    cluster_number = max(int((conversation_length_list[i] / float(constant.utterance_max_length)) * (constant.state_num)), 1)
                     
                     print("cluster_number", cluster_number)
                     
-                    cluster_label = KMeans(n_clusters=cluster_number, random_state=0).fit(dialogue_embedding.numpy())
+                    cluster_label = KMeans(n_clusters=cluster_number, random_state=0).fit(dialogue_embedding.detach().numpy()).labels_
                     
                     print("cluster_label before ordering", cluster_label)
                     
@@ -335,8 +338,8 @@ class SupervisedTrainer(object):
                     # predicted_labels.append(cluster_result["im2cluster"].tolist())
 
                     dialogue_embedding = attentive_repre[i, :conversation_length_list[i], :].squeeze(0).cpu()
-                    cluster_number = int((conversation_length_list[i] / float(constant.utterance_max_length)) * (constant.state_num))
-                    cluster_label = KMeans(n_clusters=cluster_number, random_state=0).fit(dialogue_embedding.numpy())
+                    cluster_number = max(int((conversation_length_list[i] / float(constant.utterance_max_length)) * (constant.state_num)), 1)
+                    cluster_label = KMeans(n_clusters=cluster_number, random_state=0).fit(dialogue_embedding.detach().numpy()).labels_
                     cluster_label = utils.order_cluster_labels(cluster_label.tolist())
                     predicted_labels.append(cluster_label)
                 

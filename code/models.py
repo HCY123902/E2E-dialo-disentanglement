@@ -15,13 +15,13 @@ class EnsembleModel(nn.Module):
         self.utterance_encoder = UtteranceEncoder(word_dict, word_emb=word_emb, bidirectional=bidirectional, \
                                             n_layers=1, input_dropout=0, dropout=0, rnn_cell='lstm')
         self.attentive_encoder = SelfAttentiveEncoder()
-        self.conversation_encoder = ConversationEncoder(bidirectional=bidirectional, n_layers=1, dropout=0, rnn_cell='lstm')
-        self.session_encoder = SessionEncoder(bidirectional=bidirectional, n_layers=1, dropout=0, rnn_cell='lstm')
-        self.state_matrix_encoder = StateMatrixEncoder()
-        if bidirectional:
-            self.scores_calculator = ScoresCalculator(softmax_func=nn.Softmax, teacher=True)
-        else:
-            self.scores_calculator = ScoresCalculator(softmax_func=nn.LogSoftmax)
+        # self.conversation_encoder = ConversationEncoder(bidirectional=bidirectional, n_layers=1, dropout=0, rnn_cell='lstm')
+        # self.session_encoder = SessionEncoder(bidirectional=bidirectional, n_layers=1, dropout=0, rnn_cell='lstm')
+        # self.state_matrix_encoder = StateMatrixEncoder()
+        # if bidirectional:
+        #     self.scores_calculator = ScoresCalculator(softmax_func=nn.Softmax, teacher=True)
+        # else:
+        #     self.scores_calculator = ScoresCalculator(softmax_func=nn.LogSoftmax)
     
     def forward(self, batch):
         batch_utterances, utterance_sequence_length, conversation_lengths, padded_labels = batch
@@ -86,7 +86,7 @@ class UtteranceEncoder(nn.Module):
             word_output = self.bidirectional_projection(word_output)
         return word_output, shape
 
-
+# Attention is on the utterance level
 class SelfAttentiveEncoder(nn.Module):
     def __init__(self, dropout=0.):
         super(SelfAttentiveEncoder, self).__init__()

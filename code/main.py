@@ -83,7 +83,9 @@ def train(args):
         ensemble_model_bidirectional = None
     if args.model == 'TS':
         ensemble_model_bidirectional.load_state_dict(torch.load(args.model_path))
-    ensemble_model = EnsembleModel(word_dict, word_emb=word_emb, bidirectional=False)
+
+    # Adjusted
+    ensemble_model = EnsembleModel(word_dict, word_emb=word_emb, bidirectional=True)
 
     if torch.cuda.is_available():
         ensemble_model.cuda()
