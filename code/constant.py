@@ -5,12 +5,12 @@ state_num = 16
 PAD_ID = 0
 UNK_ID = 1
 
-epoch_num = 7
-inference_step = 600
+epoch_num = 15
+inference_step = 100
 embedding_size = 300
 hidden_size = 300
 batch_size = 16
-learning_rate = 5e-4
+learning_rate = 1e-4
 total_noise_ratio = 0.2
 noise_ratio = 0.05
 
@@ -21,7 +21,6 @@ save_model_path = "./saved_models/"
 glove_path = "../glove/glove.840B.300d.txt"
 data_path = "../dataset/"
 
-NCE_weightage = 0.4
-Sup_weightage = 0.4
-temperature=0.07
-base_temperature=0.07
+NCE_weightage = 0.5
+temperature=0.1
+base_temperature=0.1

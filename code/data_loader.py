@@ -63,9 +63,13 @@ class TrainDataLoader(object):
             new_batch = torch.LongTensor(batch_size, max_length, h_size).fill_(constant.PAD_ID)
         else:
             new_batch = torch.cuda.LongTensor(batch_size, max_length, h_size).fill_(constant.PAD_ID)
+        # print(new_batch.shape, len(utterances))    
+        
         for i in range(len(utterances)):
             for j in range(len(utterances[i])):
-                new_batch[i, j] = torch.LongTensor(utterances[i][j])
+                # print(len(utterances[i]))
+                # print(len(utterances[i][j]))
+                new_batch[i, j][:len(utterances[i][j])] = torch.LongTensor(utterances[i][j])
         return new_batch
 
     def convert_to_tensors_2(self, batch, batch_size, max_length):
@@ -74,7 +78,7 @@ class TrainDataLoader(object):
         else:
             new_batch = torch.cuda.LongTensor(batch_size, max_length).fill_(constant.PAD_ID)
         for i in range(len(batch)):
-            new_batch[i] = torch.LongTensor(batch[i])
+            new_batch[i][:len(batch[i])] = torch.LongTensor(batch[i])
         return new_batch
 
     def convert_to_tensors_utterances(self, batch, batch_size, conversation_lengths, word_dict):
@@ -89,7 +93,8 @@ class TrainDataLoader(object):
 
         return new_batch, utterance_sequence_length
 
-    def convert_to_tensors_label(self, batch, batch_size, max_length, conversation_lengths):
+    def convert_to_tensors_label(self, batch, batch_size, conversation_lengths):
+        max_length = max(conversation_lengths)
         if not torch.cuda.is_available():
             new_batch = torch.LongTensor(batch_size, max_length).fill_(-1)
         else:

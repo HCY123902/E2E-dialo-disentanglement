@@ -10,8 +10,9 @@ from tqdm import tqdm
 import utils
 import constant
 
+import copy
 
-def extract_input_data(content):
+def extract_input_data(content, mode):
     print("Tokenizing sentence and word...")
     all_utterances = []
     labels = []
@@ -26,9 +27,30 @@ def extract_input_data(content):
             label = one_uttr['label']
             label_list.append(label)
             utterance_list.append(uttr_word_list)
+
+            # Added
+            if mode == "train" and len(utterance_list) >= 5 and len(utterance_list) < len(item):
+                all_utterances.append(copy.deepcopy(utterance_list))
+                labels.append(copy.deepcopy(label_list))
+            
+#             if mode != "train" and (len(utterance_list) == 1 or len(utterance_list) == len(item) // 2 or (len(utterance_list) >= len(item) * 0.94 and len(utterance_list) < len(item))):
+#                 all_utterances.append(copy.deepcopy(utterance_list))
+#                 labels.append(copy.deepcopy(label_list))
+            if mode != "train" and (len(utterance_list) <= 1 or len(utterance_list) == len(item) // 2 or (len(utterance_list) >= len(item) * 0.94 and len(utterance_list) < len(item))):
+                all_utterances.append(copy.deepcopy(utterance_list))
+                labels.append(copy.deepcopy(label_list))
+
         all_utterances.append(utterance_list)
         labels.append(label_list)
     
+#     if mode == "train":
+    zipped_list = [(a, l) for (a, l) in zip(all_utterances, labels)]
+
+    random.shuffle(zipped_list)
+
+    all_utterances = [t[0] for t in zipped_list]
+    labels = [t[1] for t in zipped_list]
+
     return all_utterances, labels
 
 def build_word_dict(all_utterances):
@@ -57,7 +79,7 @@ def read_raw_data(datapath, mode='train'):
         content = json.load(fin)
     print("{} {} data examples read.".format(len(content), mode))
 
-    all_utterances, labels = extract_input_data(content)
+    all_utterances, labels = extract_input_data(content, mode)
     word_dict = build_word_dict(all_utterances)
     
     return all_utterances, labels, word_dict

@@ -1,4 +1,3 @@
-from this import d
 import torch
 import torch.nn as nn
 import torch.nn.functional as F 
@@ -15,6 +14,8 @@ import utils
 
 import criterion
 
+from sklearn.cluster import KMeans
+
 class SupervisedTrainer(object):
     def __init__(self, args, ensemble_model, teacher_model=None, logger=None, current_time=None, loss=nn.KLDivLoss, optimizer=None):
         self.args = args
@@ -25,7 +26,6 @@ class SupervisedTrainer(object):
         self.loss_func = loss(reduction='batchmean')
         self.SupConLossNCE = criterion.SupConLossNCE(temperature=constant.temperature, base_temperature=constant.base_temperature)
         self.SupConLossPrototype = criterion.SupConLossPrototype(temperature=constant.temperature, base_temperature=constant.base_temperature)
-        self.PrototypeKmeansDivergence = criterion.PrototypeKmeansDivergence()
 
         if optimizer == None:
             if self.args.model == 'T':
@@ -57,9 +57,6 @@ class SupervisedTrainer(object):
     def calculate_prototype_criterion(self, input_, conversation_length, target):
         return self.SupConLossPrototype(input_, conversation_length, target)
 
-    # Added
-    def calculate_prototype_k_means_criterion(self, input_, conversation_length, target):
-        return self.SupConLossPrototype(input_, conversation_length, target)
 
     def _train_batch(self, batch, noise_batch):
         batch_utterances, utterance_sequence_length, conversation_length, padded_labels = batch
@@ -95,15 +92,13 @@ class SupervisedTrainer(object):
             
             # Added
             if torch.any(attentive_repre.isnan()):
-                return "skip", 0, 0, 0, 0
+                return "skip", 0, 0, 0
+            
             
             loss_1 = self.calculate_NCE_criterion(attentive_repre, conversation_length, padded_labels)
             loss_2 = self.calculate_prototype_criterion(attentive_repre, conversation_length, padded_labels)
-            loss_3 = self.calculate_prototype_k_means_criterion(attentive_repre, conversation_length, padded_labels)
 
-            # loss = constant.NCE_weightage * loss_1 + (1 - constant.NCE_weightage) * loss_2
-            loss = constant.NCE_weightage * loss_1 + constant.Sup_weightage * loss_2 + (1 - constant.NCE_weightage - constant.Sup_weightage) * loss_3
-
+            loss = constant.NCE_weightage * loss_1 + (1 - constant.NCE_weightage) * loss_2
             # loss = loss_2
             self.optimizer.zero_grad()
             loss.backward()
@@ -133,7 +128,7 @@ class SupervisedTrainer(object):
                     noise_batch = noise_train_loader[i]
                 else:
                     noise_batch = None
-                loss_student, loss_teacher, loss_kl, batch_size, uttr_cnt = self._train_batch(batch, noise_batch)
+                loss_student, loss_teacher, loss_kl, batch_size = self._train_batch(batch, noise_batch)
                 # loss_student, batch_size, uttr_cnt = self._train_batch(batch)
                 
                 # Added
@@ -253,19 +248,32 @@ class SupervisedTrainer(object):
         truth_labels = []
         with torch.no_grad():
             for batch in test_loader:
-                batch_utterances, _, labels, utterance_sequence_length, \
-                        _,  _, conversation_length_list, padded_labels = batch
+                batch_utterances, utterance_sequence_length, conversation_length_list, padded_labels = batch
                 # conversation_length_list = [sum(session_sequence_length[i]) for i in range(len(session_sequence_length))]
                 utterance_repre, shape = self.ensemble_model.utterance_encoder(batch_utterances, utterance_sequence_length)
                 attentive_repre = self.ensemble_model.attentive_encoder(batch_utterances, utterance_repre, shape)
 
                 # Added
                 for i in range(attentive_repre.shape[0]):
-                    dialogue_embedding = attentive_repre[i, :conversation_length_list[i], :].squeeze(0).cpu()
+                    # dialogue_embedding = attentive_repre[i, :conversation_length_list[i], :].squeeze(0).cpu()
+                    dialogue_embedding = attentive_repre[i, :conversation_length_list[i], :].cpu()
+                    
                     cluster_number = int((conversation_length_list[i] / float(constant.utterance_max_length)) * (constant.state_num))
-                    cluster_label = utils.kmeans(dialogue_embedding, cluster_number)
-                    cluster_label = utils.order_cluster_labels()
-                    predicted_labels.append(cluster_label.tolist())
+                    
+                    if cluster_number < 1:
+                        cluster_number = 1
+                    
+                    print("cluster_number", cluster_number)
+                    
+                    cluster_label = KMeans(n_clusters=cluster_number, random_state=0).fit(dialogue_embedding.numpy())
+                    
+                    print("cluster_label before ordering", cluster_label)
+                    
+                    cluster_label = utils.order_cluster_labels(cluster_label.tolist())
+                    
+                    print("cluster_label after ordering", cluster_label)
+                    
+                    predicted_labels.append(cluster_label)
 
                     # print("attentive_repre", attentive_repre.shape)
                     # print("dialogue_embedding", dialogue_embedding.shape)
@@ -328,9 +336,9 @@ class SupervisedTrainer(object):
 
                     dialogue_embedding = attentive_repre[i, :conversation_length_list[i], :].squeeze(0).cpu()
                     cluster_number = int((conversation_length_list[i] / float(constant.utterance_max_length)) * (constant.state_num))
-                    cluster_label = utils.kmeans(dialogue_embedding, cluster_number)
-                    cluster_label = utils.order_cluster_labels()
-                    predicted_labels.append(cluster_label.tolist())
+                    cluster_label = KMeans(n_clusters=cluster_number, random_state=0).fit(dialogue_embedding.numpy())
+                    cluster_label = utils.order_cluster_labels(cluster_label.tolist())
+                    predicted_labels.append(cluster_label)
                 
                 # # [batch_size, max_conversation_length, hidden_size]
                 # conversation_repre = self.ensemble_model.conversation_encoder(attentive_repre)

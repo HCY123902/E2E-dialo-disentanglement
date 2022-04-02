@@ -2,11 +2,12 @@ from __future__ import print_function
 
 import torch
 import torch.nn as nn
-import numpy as np
 
 import constant
 
-import utils
+import numpy as np
+from sklearn.cluster import KMeans
+from scipy.optimize import linear_sum_assignment
 
 class SupConLossNCE(nn.Module):
     """Supervised Contrastive Learning: https://arxiv.org/pdf/2004.11362.pdf.
@@ -127,6 +128,8 @@ class SupConLossNCE(nn.Module):
 #             print("Checkpoint 6 loss", loss)
 
             result[i] = loss
+    
+        result = result[~result.isnan()]
             
         print("NCE result", result)
         print("NCE result mean", result.mean())
@@ -327,6 +330,8 @@ class SupConLossPrototype(nn.Module):
             loss = loss.view(1, dialogue_lengths[i]).mean()
 
             result[i] = loss
+        
+        result = result[~result.isnan()]
             
         print("Prototype result", result)
         print("Prototype result mean", result.mean())
@@ -394,31 +399,19 @@ class PrototypeKmeansDivergence(nn.Module):
             # print("Checkpoint 5 prototypes", prototypes)
 
             cluster_number = int((dialogue_lengths[i] / float(constant.utterance_max_length)) * (constant.state_num))
-            k_means_cluster_labels = utils.kmeans(dialogue, cluster_number)
-            k_means_cluster_labels = utils.order_cluster_labels()
-            k_means_map = {}
-            for (i, k_means_label) in enumerate(k_means_cluster_labels):
-                if k_means_map.get(k_means_label) == None:
-                    k_means_map[k_means_label] = []
-                k_means_map[k_means_label].append(i)
+            # print("cluster number", cluster_number)
             
-            k_means_clusters = []
+            k_means = KMeans(n_clusters=cluster_number, random_state=0).fit(dialogue.numpy())
+            
+            squared_distance = np.array([[np.linalg.norm(prototype.numpy()-center) for center in k_means.cluster_centers_] for prototype in prototypes])
 
-            for k_means_label in k_means_map:
-                k_means_clusters.append(dialogue[k_means_map[k_means_label], :].mean(dim=0))
-
-            k_means_clusters = torch.tensor(k_means_clusters, dtype=float).to(device)
-
-            cnt = self.hungarian(prototypes, k_means_clusters)
-
-            if cnt < prototypes.shape[0] // 2:
-                print("Matches found is {}, while there are {} prototypes".format(cnt, prototypes.shape[0]))
+            row_ind, col_ind = linear_sum_assignment(squared_distance)
+            cnt = len(row_ind)
 
             loss = torch.tensor(0).to(device)
 
-            for (prototype, means_center) in enumerate(self.p):
-                if means_center > 0:
-                    loss = loss + torch.dist(prototypes[prototype], k_means_clusters[means_center - 1]).to(device)
+            for (r, c) in zip(row_ind, col_ind):
+              loss = loss + torch.dist(prototypes[r], torch.tensor(k_means.cluster_centers_[c]).to(device)).to(device)
             # Average distance between prototype and matched cluster center
             loss = loss / cnt
             
@@ -429,44 +422,9 @@ class PrototypeKmeansDivergence(nn.Module):
                 
                 loss = loss[~loss.isnan()]
             
-            loss = loss.view(1, dialogue_lengths[i]).mean()
-
             result[i] = loss
             
         print("Prototype result", result)
         print("Prototype result mean", result.mean())
 
         return result.mean()
-
-    def hungarian(self, prototypes, k_means_centers):
-        self.M = prototypes.size()[0]
-        self.N = k_means_centers.size()[0]
-        squared_distance = torch.tensor(([[torch.dist(prototype, center) for center in k_means_centers] for prototype in prototypes]))
-        closest_centers_y = (torch.topk(squared_distance, 3, dim=-1)[1]).reshape(-1)
-        closest_centers_x = ((torch.arange(self.M).reshape(1, -1)).expand(self.M, 3)).reshape(-1)
-
-        self.Map = torch.zeros((self.M, self.N), dtype=int)
-
-        # Create edges between prototype and its 3 closest k means cluster centers
-        self.Map[closest_centers_x, closest_centers_y] = 1
-        
-        self.p = torch.zeros(self.N)
-        
-        cnt = 0
-        for i in range(1, self.M+1):
-            self.vis = np.zeros(self.N)
-            if (self.match(i)):
-                cnt = cnt + 1
-        
-        return cnt
-
-    def match(self, i):
-        for j in range(1, self.N+1):
-            if (self.Map[i][j] and not self.vis[j]):
-            
-                self.vis[j] = True               
-                if (self.p[j] == 0 or self.match(self.p[j])):
-                
-                    self.p[j] = i
-                    return True
-        return False
