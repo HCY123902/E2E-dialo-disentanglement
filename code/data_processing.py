@@ -33,10 +33,7 @@ def extract_input_data(content, mode):
                 all_utterances.append(copy.deepcopy(utterance_list))
                 labels.append(copy.deepcopy(label_list))
             
-#             if mode != "train" and (len(utterance_list) == 1 or len(utterance_list) == len(item) // 2 or (len(utterance_list) >= len(item) * 0.94 and len(utterance_list) < len(item))):
-#                 all_utterances.append(copy.deepcopy(utterance_list))
-#                 labels.append(copy.deepcopy(label_list))
-            if mode != "train" and (len(utterance_list) <= 1 or len(utterance_list) == len(item) // 2 or (len(utterance_list) >= len(item) * 0.94 and len(utterance_list) < len(item))):
+            if mode != "train" and (len(utterance_list) <= 3 or len(utterance_list) == len(item) // 2 or (len(utterance_list) >= 0.8 * len(item) and len(utterance_list) < len(item))):
                 all_utterances.append(copy.deepcopy(utterance_list))
                 labels.append(copy.deepcopy(label_list))
 
