@@ -264,7 +264,7 @@ class SupervisedTrainer(object):
                     # dialogue_embedding = attentive_repre[i, :conversation_length_list[i], :].squeeze(0).cpu()
                     dialogue_embedding = attentive_repre[i, :conversation_length_list[i], :].cpu()
                     
-                    cluster_number = max(int((conversation_length_list[i] / float(constant.utterance_max_length)) * (constant.state_num)), 1)
+                    cluster_number = max(int((conversation_length_list[i] / float(constant.dialogue_max_length)) * (constant.state_num)), 1)
                     
                     print("cluster_number", cluster_number)
                     
@@ -338,7 +338,7 @@ class SupervisedTrainer(object):
                     # predicted_labels.append(cluster_result["im2cluster"].tolist())
 
                     dialogue_embedding = attentive_repre[i, :conversation_length_list[i], :].squeeze(0).cpu()
-                    cluster_number = max(int((conversation_length_list[i] / float(constant.utterance_max_length)) * (constant.state_num)), 1)
+                    cluster_number = max(int((conversation_length_list[i] / float(constant.dialogue_max_length)) * (constant.state_num)), 1)
                     cluster_label = KMeans(n_clusters=cluster_number, random_state=0).fit(dialogue_embedding.detach().numpy()).labels_
                     cluster_label = utils.order_cluster_labels(cluster_label.tolist())
                     predicted_labels.append(cluster_label)
