@@ -1,5 +1,6 @@
 seed = 5
 utterance_max_length = 50
+dialogue_max_length = 50
 state_num = 6
 
 PAD_ID = 0
