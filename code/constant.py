@@ -6,12 +6,12 @@ state_num = 6
 PAD_ID = 0
 UNK_ID = 1
 
-epoch_num = 15
-inference_step = 100
+epoch_num = 7
+inference_step = 1000
 embedding_size = 300
 hidden_size = 300
 batch_size = 16
-learning_rate = 1e-5
+learning_rate = 5e-5
 total_noise_ratio = 0.2
 noise_ratio = 0.05
 

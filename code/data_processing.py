@@ -29,24 +29,29 @@ def extract_input_data(content, mode):
             utterance_list.append(uttr_word_list)
 
             # Added
-            if mode == "train" and len(utterance_list) >= 5 and len(utterance_list) < len(item):
+            if mode == "train":
                 all_utterances.append(copy.deepcopy(utterance_list))
                 labels.append(copy.deepcopy(label_list))
             
-            if mode != "train" and (len(utterance_list) <= 3 or len(utterance_list) == len(item) // 2 or (len(utterance_list) >= 0.8 * len(item) and len(utterance_list) < len(item))):
+           # if mode != "train" and (len(utterance_list) <= 3 or len(utterance_list) == len(item) // 2 or (len(utterance_list) >= 0.8 * len(item) and len(utterance_list) < len(item))):
+            if mode != "train":
                 all_utterances.append(copy.deepcopy(utterance_list))
                 labels.append(copy.deepcopy(label_list))
 
         all_utterances.append(utterance_list)
         labels.append(label_list)
     
-#     if mode == "train":
+    # if mode == "train":
     zipped_list = [(a, l) for (a, l) in zip(all_utterances, labels)]
 
     random.shuffle(zipped_list)
 
     all_utterances = [t[0] for t in zipped_list]
     labels = [t[1] for t in zipped_list]
+    
+    # Added
+    all_utterances = all_utterances[:len(all_utterances)//10]
+    labels = labels[:len(all_utterances)]
 
     return all_utterances, labels
 

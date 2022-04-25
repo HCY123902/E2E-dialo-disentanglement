@@ -24,6 +24,9 @@ random.seed(constant.seed)
 torch.manual_seed(constant.seed)
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+os.environ['OMP_NUM_THREADS'] = '8'
+os.environ['MKL_NUM_THREADS'] = '8'
+torch.set_num_threads(8)
 
 current_time = strftime("%Y-%b-%d-%H_%M_%S", gmtime())
 log_head = "Learning Rate: {}; Random Seed: {}; ".format(constant.learning_rate, constant.seed)
