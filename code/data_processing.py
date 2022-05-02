@@ -38,8 +38,8 @@ def extract_input_data(content, mode):
                 all_utterances.append(copy.deepcopy(utterance_list))
                 labels.append(copy.deepcopy(label_list))
 
-        all_utterances.append(utterance_list)
-        labels.append(label_list)
+        # all_utterances.append(utterance_list)
+        # labels.append(label_list)
     
     # if mode == "train":
     zipped_list = [(a, l) for (a, l) in zip(all_utterances, labels)]
