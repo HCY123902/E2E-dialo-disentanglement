@@ -470,11 +470,14 @@ def order_cluster_labels(cluster_labels):
     return ordered_labels
 
 def calculateK(dialogue_embedding, dialogue_length, method):
+    if dialogue_length == 1:
+        print("Returning 1 as K since there is only 1 utterance in the dialogue")
+        return 1
     average_K = max(int((dialogue_length / float(constant.dialogue_max_length)) * (constant.state_num)), 1)
     n  = 2
     if method == 'silhouette':
         scores = []
-        for K in range(1, dialogue_length + 1):
+        for K in range(2, dialogue_length + 1):
             kmeans = KMeans(n_clusters=K, random_state=0)
             labels = kmeans.fit(dialogue_embedding).labels_
             scores.append((K, silhouette_score(dialogue_embedding, labels)))
@@ -494,7 +497,7 @@ def calculateK(dialogue_embedding, dialogue_length, method):
             kmeans.fit(dialogue_embedding)
             scores.append((K, kmeans.inertia_))
 
-        rate = [(scores[i + 1][0], scores[i + 1][1] - scores[i][1]) for i in range(dialogue_length - 1)]
+        rate = [(scores[i + 1][0], scores[i][1] - scores[i + 1][1]) for i in range(dialogue_length - 1)]
         rate.sort(key=lambda x:x[1], reverse=True)
         # Select the K closer to average_K
         # if np.abs(scores[0][0] - average_K) > np.abs(scores[1][0] - average_K):
