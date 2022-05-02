@@ -13,11 +13,12 @@ class SupConLossNCE(nn.Module):
     """Supervised Contrastive Learning: https://arxiv.org/pdf/2004.11362.pdf.
     It also supports the unsupervised contrastive loss in SimCLR"""
     def __init__(self, temperature=0.07, contrast_mode='all',
-                 base_temperature=0.07):
+                 base_temperature=0.07, print_detail=False):
         super(SupConLossNCE, self).__init__()
         self.temperature = temperature
         self.contrast_mode = contrast_mode
         self.base_temperature = base_temperature
+        self.print_detail=print_detail
 
     def forward(self, features, dialogue_lengths, labels=None, mask=None):
         """Compute loss for model. If both `labels` and `mask` are None,
@@ -130,9 +131,10 @@ class SupConLossNCE(nn.Module):
             result[i] = loss
     
         result = result[~result.isnan()]
-            
-        print("NCE result", result)
-        print("NCE result mean", result.mean())
+        
+        if self.print_detail:
+            print("NCE result", result)
+            print("NCE result mean", result.mean())
 
         return result.mean()
 
@@ -204,11 +206,12 @@ class SupConLossPrototype(nn.Module):
     """Supervised Contrastive Learning: https://arxiv.org/pdf/2004.11362.pdf.
     It also supports the unsupervised contrastive loss in SimCLR"""
     def __init__(self, temperature=0.07, contrast_mode='all',
-                 base_temperature=0.07):
+                 base_temperature=0.07, print_detail=False):
         super(SupConLossPrototype, self).__init__()
         self.temperature = temperature
         self.contrast_mode = contrast_mode
         self.base_temperature = base_temperature
+        self.print_detail=print_detail
 
     def forward(self, features, dialogue_lengths, labels=None, mask=None):
         """Compute loss for model. If both `labels` and `mask` are None,
@@ -332,15 +335,17 @@ class SupConLossPrototype(nn.Module):
             result[i] = loss
         
         result = result[~result.isnan()]
-            
-        print("Prototype result", result)
-        print("Prototype result mean", result.mean())
+        
+        if self.print_detail:
+            print("Prototype result", result)
+            print("Prototype result mean", result.mean())
 
         return result.mean()
 
 class PrototypeKmeansDivergence(nn.Module):
-    def __init__(self):
+    def __init__(self, print_detail=False):
         super(PrototypeKmeansDivergence, self).__init__()
+        self.print_detail=print_detail
 
     def forward(self, features, dialogue_lengths, labels=None, mask=None):
         device = (torch.device('cuda')
@@ -420,8 +425,9 @@ class PrototypeKmeansDivergence(nn.Module):
                 loss = loss[~loss.isnan()]
             
             result[i] = loss
-            
-        print("Matching result", result)
-        print("Matching result mean", result.mean())
+        
+        if self.print_detail:
+            print("Matching result", result)
+            print("Matching result mean", result.mean())
 
         return result.mean()

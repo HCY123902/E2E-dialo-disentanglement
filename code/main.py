@@ -140,6 +140,7 @@ if __name__ == "__main__":
     parser.add_argument('--model_path', type=str, default='')
     parser.add_argument('--device', type=str, default='0')
     parser.add_argument('--Kmeans_metric', type=str, choices=['silhouette', 'elbow', 'combined'], default='silhouette')
+    parser.add_argument('--print_detail', action='store_true')
     args = parser.parse_args()
 
     os.environ['CUDA_VISIBLE_DEVICES'] = args.device

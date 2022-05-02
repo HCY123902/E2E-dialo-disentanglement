@@ -9,6 +9,7 @@ import random
 import copy
 from sklearn import metrics
 from sklearn.metrics.cluster import normalized_mutual_info_score
+from sklearn.metrics import silhouette_score
 from sklearn.cluster import KMeans
 
 import constant
@@ -476,7 +477,7 @@ def calculateK(dialogue_embedding, dialogue_length, method):
     n  = 2
     if method == 'silhouette':
         scores = []
-        for K in range(2, dialogue_length + 1):
+        for K in range(2, dialogue_length):
             kmeans = KMeans(n_clusters=K, random_state=0)
             labels = kmeans.fit(dialogue_embedding).labels_
             scores.append((K, silhouette_score(dialogue_embedding, labels)))

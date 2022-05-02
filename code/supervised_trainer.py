@@ -24,9 +24,9 @@ class SupervisedTrainer(object):
         self.logger = logger
         self.current_time = current_time
         self.loss_func = loss(reduction='batchmean')
-        self.SupConLossNCE = criterion.SupConLossNCE(temperature=constant.temperature, base_temperature=constant.base_temperature)
-        self.SupConLossPrototype = criterion.SupConLossPrototype(temperature=constant.temperature, base_temperature=constant.base_temperature)
-        self.PrototypeKmeansDivergence = criterion.PrototypeKmeansDivergence()
+        self.SupConLossNCE = criterion.SupConLossNCE(temperature=constant.temperature, base_temperature=constant.base_temperature, print_detail=args.print_detail)
+        self.SupConLossPrototype = criterion.SupConLossPrototype(temperature=constant.temperature, base_temperature=constant.base_temperature, print_detail=args.print_detail)
+        self.PrototypeKmeansDivergence = criterion.PrototypeKmeansDivergence(print_detail=args.print_detail)
 
         if optimizer == None:
             if self.args.model == 'T':
