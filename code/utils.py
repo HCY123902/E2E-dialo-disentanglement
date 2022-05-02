@@ -470,10 +470,10 @@ def order_cluster_labels(cluster_labels):
     return ordered_labels
 
 def calculateK(dialogue_embedding, dialogue_length, method):
-    if dialogue_length <= 1:
-        print("Returning 1 as K since there is at most 1 utterance in the dialogue")
-        return 1
     average_K = max(int((dialogue_length / float(constant.dialogue_max_length)) * (constant.state_num)), 1)
+    if dialogue_length <= 2:
+        print("Returning the average K as K since there is at most 2 utterance in the dialogue")
+        return average_K
     n  = 2
     if method == 'silhouette':
         scores = []
