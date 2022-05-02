@@ -466,3 +466,46 @@ def order_cluster_labels(cluster_labels):
         ordered_labels.append(record[label])
 
     return ordered_labels
+
+def calculateK(dialogue_embedding, dialogue_length, method):
+    average_K = max(int((dialogue_length / float(constant.dialogue_max_length)) * (constant.state_num)), 1)
+    n  = 2
+    if method == 'silhouette':
+        scores = []
+        for K in range(1, dialogue_length + 1):
+            kmeans = KMeans(n_clusters=K, random_state=0)
+            labels = kmeans.fit(dialogue_embedding).labels_
+            scores.append((K, silhouette_score(dialogue_embedding, labels)))
+
+        scores.sort(key=lambda x:x[1], reverse=True)
+        # Select the K closer to average_K
+        
+        # if np.abs(scores[0][0] - average_K) > np.abs(scores[1][0] - average_K):
+        #     return scores[1][0]
+        scores = [(i[0], np.abs(i[0] - average_K)) for i in scores[:n]]
+
+        return min(scores, key=lambda x:x[1])[0]
+    elif method == 'elbow':
+        scores = []
+        for K in range(1, dialogue_length + 1):
+            kmeans = KMeans(n_clusters=K, random_state=0)
+            kmeans.fit(dialogue_embedding)
+            scores.append((K, kmeans.inertia_))
+
+        rate = [(scores[i + 1][0], scores[i + 1][1] - scores[i][1]) for i in range(dialogue_length - 1)]
+        rate.sort(key=lambda x:x[1], reverse=True)
+        # Select the K closer to average_K
+        # if np.abs(scores[0][0] - average_K) > np.abs(scores[1][0] - average_K):
+        #     return scores[1][0]
+        rate = [(i[0], np.abs(i[0] - average_K)) for i in rate[:n]]
+
+        return min(rate, key=lambda x:x[1])[0]
+
+    elif method == 'combined':
+        # TODO
+        print("Method not implemented, returning the average K")
+        return average_K
+
+    else:
+        print("Method not defined, returning the average K")
+        return average_K
