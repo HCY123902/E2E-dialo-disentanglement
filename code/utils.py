@@ -477,7 +477,7 @@ def calculateK(dialogue_embedding, dialogue_length, method):
     n  = 2
     if method == 'silhouette':
         scores = []
-        for K in range(2, dialogue_length + 1):
+        for K in range(2, dialogue_length):
             kmeans = KMeans(n_clusters=K, random_state=0)
             labels = kmeans.fit(dialogue_embedding).labels_
             scores.append((K, silhouette_score(dialogue_embedding, labels)))
