@@ -9,6 +9,7 @@ import random
 import copy
 from sklearn import metrics
 from sklearn.metrics.cluster import normalized_mutual_info_score
+from sklearn.cluster import KMeans
 
 import constant
 
