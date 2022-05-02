@@ -489,7 +489,7 @@ def calculateK(dialogue_embedding, dialogue_length, method):
         #     return scores[1][0]
         scores = [(i[0], np.abs(i[0] - average_K)) for i in scores[:n]]
 
-        return min(scores, key=lambda x:x[1])[0]
+        return min(min(scores, key=lambda x:x[1])[0], constant.state_num)
     elif method == 'elbow':
         scores = []
         for K in range(1, dialogue_length + 1):
@@ -504,7 +504,7 @@ def calculateK(dialogue_embedding, dialogue_length, method):
         #     return scores[1][0]
         rate = [(i[0], np.abs(i[0] - average_K)) for i in rate[:n]]
 
-        return min(rate, key=lambda x:x[1])[0]
+        return min(min(rate, key=lambda x:x[1])[0], constant.state_num)
 
     elif method == 'combined':
         # TODO
