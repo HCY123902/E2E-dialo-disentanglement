@@ -496,7 +496,7 @@ def calculateK(dialogue_embedding, dialogue_length, method):
             kmeans.fit(dialogue_embedding)
             scores.append((K, kmeans.inertia_))
 
-        rate = [(scores[i + 1][0], scores[i][1] - scores[i+1][1]) for i in range(dialogue_length - 1)]
+        rate = [(scores[i + 1][0], scores[i][1] - scores[i + 1][1]) for i in range(dialogue_length - 1)]
         rate.sort(key=lambda x:x[1], reverse=True)
         # Select the K closer to average_K
         # if np.abs(scores[0][0] - average_K) > np.abs(scores[1][0] - average_K):
