@@ -477,7 +477,7 @@ def calculateK(dialogue_embedding, dialogue_length, method):
     n  = 2
     if method == 'silhouette':
         scores = []
-        for K in range(2, min(dialogue_length, constant.state_num)):
+        for K in range(2, min(dialogue_length - 1, constant.state_num) + 1):
             kmeans = KMeans(n_clusters=K, random_state=0)
             labels = kmeans.fit(dialogue_embedding).labels_
             scores.append([K, silhouette_score(dialogue_embedding, labels)])
@@ -490,7 +490,7 @@ def calculateK(dialogue_embedding, dialogue_length, method):
         return min(scores, key=lambda x:x[1])[0]
     elif method == 'elbow':
         scores = []
-        for K in range(1, min(dialogue_length + 1, constant.state_num)):
+        for K in range(1, min(dialogue_length, constant.state_num) + 1):
             kmeans = KMeans(n_clusters=K, random_state=0)
             kmeans.fit(dialogue_embedding)
             scores.append([K, kmeans.inertia_])
