@@ -477,34 +477,31 @@ def calculateK(dialogue_embedding, dialogue_length, method):
     n  = 2
     if method == 'silhouette':
         scores = []
-        for K in range(2, dialogue_length):
+        for K in range(2, min(dialogue_length, constant.state_num)):
             kmeans = KMeans(n_clusters=K, random_state=0)
             labels = kmeans.fit(dialogue_embedding).labels_
-            scores.append((K, silhouette_score(dialogue_embedding, labels)))
+            scores.append([K, silhouette_score(dialogue_embedding, labels)])
 
         scores.sort(key=lambda x:x[1], reverse=True)
         # Select the K closer to average_K
         
-        # if np.abs(scores[0][0] - average_K) > np.abs(scores[1][0] - average_K):
-        #     return scores[1][0]
         scores = [(i[0], np.abs(i[0] - average_K)) for i in scores[:n]]
 
-        return min(min(scores, key=lambda x:x[1])[0], constant.state_num)
+        return min(scores, key=lambda x:x[1])[0]
     elif method == 'elbow':
         scores = []
-        for K in range(1, dialogue_length + 1):
+        for K in range(1, min(dialogue_length + 1, constant.state_num)):
             kmeans = KMeans(n_clusters=K, random_state=0)
             kmeans.fit(dialogue_embedding)
-            scores.append((K, kmeans.inertia_))
+            scores.append([K, kmeans.inertia_])
 
-        rate = [(scores[i + 1][0], scores[i][1] - scores[i + 1][1]) for i in range(dialogue_length - 1)]
+        rate = [(scores[i][0], calculate_angle(scores[i-1], scores[i], scores[i+1])) for i in range(1, dialogue_length - 1)]
         rate.sort(key=lambda x:x[1], reverse=True)
         # Select the K closer to average_K
-        # if np.abs(scores[0][0] - average_K) > np.abs(scores[1][0] - average_K):
-        #     return scores[1][0]
+
         rate = [(i[0], np.abs(i[0] - average_K)) for i in rate[:n]]
 
-        return min(min(rate, key=lambda x:x[1])[0], constant.state_num)
+        return min(rate, key=lambda x:x[1])[0]
 
     elif method == 'combined':
         # TODO
@@ -515,5 +512,9 @@ def calculateK(dialogue_embedding, dialogue_length, method):
         print("Method not defined, returning the average K")
         return average_K
     
-
+def calculate_angle(p1, p2, p3):
+    e12 = np.linalg.norm(p1 - p2)
+    e23 = np.linalg.norm(p2 - p3)
+    e13 = np.linalg.norm(p1 - p3)
+    return np.arccos((e12**2 + e23**2 - e13**2)/(2*e12*e23))
 
