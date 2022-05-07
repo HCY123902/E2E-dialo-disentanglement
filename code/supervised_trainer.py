@@ -1,4 +1,3 @@
-from code.constant import NCE_weightage
 import torch
 import torch.nn as nn
 import torch.nn.functional as F 

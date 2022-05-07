@@ -437,7 +437,7 @@ class PrototypeKmeansDivergence(nn.Module):
 class TripletLoss(nn.Module):
     def __init__(self, temperature=0.07, contrast_mode='all',
                  base_temperature=0.07, print_detail=False):
-        super(SupConLossNCE, self).__init__()
+        super(TripletLoss, self).__init__()
         self.temperature = temperature
         self.base_temperature = base_temperature
         self.print_detail=print_detail
