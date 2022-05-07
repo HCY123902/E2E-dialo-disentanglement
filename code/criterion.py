@@ -1,4 +1,6 @@
 from __future__ import print_function
+from enum import Enum
+from turtle import pos
 
 import torch
 import torch.nn as nn
@@ -36,7 +38,7 @@ class SupConLossNCE(nn.Module):
         device = (torch.device('cuda')
                   if torch.cuda.is_available()
                   else torch.device('cpu'))
-        result = torch.zeros(features.shape[0]).to(device)
+        result = torch.zeros(features.shape[0], requires_grad=True).to(device)
 
         for i, dialogue in enumerate(features):
             # Discard padded utterances
@@ -229,7 +231,7 @@ class SupConLossPrototype(nn.Module):
         device = (torch.device('cuda')
                   if torch.cuda.is_available()
                   else torch.device('cpu'))
-        result = torch.zeros(features.shape[0]).to(device)
+        result = torch.zeros(features.shape[0], requires_grad=True).to(device)
 
         for i, dialogue in enumerate(features):
             # Discard padded utterances  
@@ -429,5 +431,75 @@ class PrototypeKmeansDivergence(nn.Module):
         if self.print_detail:
             print("Matching result", result)
             print("Matching result mean", result.mean())
+
+        return result.mean()
+
+class TripletLoss(nn.Module):
+    def __init__(self, temperature=0.07, contrast_mode='all',
+                 base_temperature=0.07, print_detail=False):
+        super(SupConLossNCE, self).__init__()
+        self.temperature = temperature
+        self.base_temperature = base_temperature
+        self.print_detail=print_detail
+        self.log_softmax = torch.nn.LogSoftmax(dim=0)
+
+    def forward(self, features, dialogue_lengths, labels=None, mask=None):
+        device = (torch.device('cuda')
+                  if torch.cuda.is_available()
+                  else torch.device('cpu'))
+        result = torch.zeros(features.shape[0], requires_grad=True).to(device)
+
+        neg_pool = [(k, p) for k in range(features.size(0)) for p in range(dialogue_lengths[k])]
+
+        for i, dialogue in enumerate(features):
+            loss = torch.zeros(1, requires_grad=True).to(device)
+            # Discard padded utterances
+
+            dialogue = dialogue[:dialogue_lengths[i], :]
+            dialogue_labels = labels[i, :dialogue_lengths[i]]
+            dialogue_labels = dialogue_labels.contiguous().view(-1, 1)
+            for j, utterance in enumerate(dialogue):
+                label = dialogue_labels[j]
+                pos_pool = dialogue_labels==label
+                pos_pool[j] = False
+                pos_pool = (pos_pool).nonzero().squeeze(1).cpu().detach().numpy().astype(int)
+                if np.sum(pos_pool) > 0:
+                    # Draw 1 positive sample with uniform distribution
+                    pos_sample = dialogue[np.random.choice(pos_pool, 1), :]
+                # neg_dialogue = np.random.choice(range(features.size(0)).remove(i), 1)
+                # neg_utterance = np.random.choice(range(dialogue_lengths[neg_dialogue]), 1)
+                neg_sample = neg_pool[np.random.choice(len(neg_pool), features.size(0))]
+                neg_sample = features[[n[0] for n in neg_sample], [n[1] for n in neg_sample], :].contiguous()
+
+                contrast_feature = torch.cat((pos_sample.unsqueeze(0), neg_sample), dim=0)
+                
+                print(contrast_feature.size())
+
+                # [1, sample_size]
+                anchor_dot_contrast = torch.div(
+                    torch.matmul(utterance.unsqueeze(0), contrast_feature.T),
+                    self.temperature)
+
+                print(anchor_dot_contrast.size())
+
+                loss = loss - (self.temperature / self.base_temperature) * (self.log_softmax(anchor_dot_contrast))[0]
+            
+            if torch.any(loss.isnan()):
+                print("NCE containing nan", loss)
+                print("Corresponding NCE dialogue containing nan", dialogue)
+                # assert ~torch.any(loss.isnan())
+                
+                loss = loss[~loss.isnan()]
+            
+#             print("Checkpoint 5 loss", loss)
+            loss = loss / dialogue_lengths[i]
+
+            result[i] = loss
+    
+        result = result[~result.isnan()]
+        
+        if self.print_detail:
+            print("NCE result", result)
+            print("NCE result mean", result.mean())
 
         return result.mean()

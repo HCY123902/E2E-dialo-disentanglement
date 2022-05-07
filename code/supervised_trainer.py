@@ -1,3 +1,4 @@
+from code.constant import NCE_weightage
 import torch
 import torch.nn as nn
 import torch.nn.functional as F 
@@ -26,7 +27,11 @@ class SupervisedTrainer(object):
         self.loss_func = loss(reduction='batchmean')
         self.SupConLossNCE = criterion.SupConLossNCE(temperature=constant.temperature, base_temperature=constant.base_temperature, print_detail=args.print_detail)
         self.SupConLossPrototype = criterion.SupConLossPrototype(temperature=constant.temperature, base_temperature=constant.base_temperature, print_detail=args.print_detail)
-        self.PrototypeKmeansDivergence = criterion.PrototypeKmeansDivergence(print_detail=args.print_detail)
+
+        if self.args.train_mode == 'supervised':
+            self.PrototypeKmeansDivergence = criterion.PrototypeKmeansDivergence(print_detail=args.print_detail)
+        elif self.args.train_mode == 'unsupervised':
+            self.Triplet = criterion.TripletLoss(temperature=constant.temperature, base_temperature=constant.base_temperature, print_detail=args.print_detail)
 
         if optimizer == None:
             if self.args.model == 'T':
@@ -49,22 +54,8 @@ class SupervisedTrainer(object):
         loss = torch.sum(loss)/len(input_)
         return loss
 
-    # Added
-    def calculate_NCE_criterion(self, input_, conversation_length, target):
-
-        return self.SupConLossNCE(input_, conversation_length, target)
-    
-    # Added
-    def calculate_prototype_criterion(self, input_, conversation_length, target):
-        return self.SupConLossPrototype(input_, conversation_length, target)
-
-    # Added
-    def calculate_matching_criterion(self, input_, conversation_length, target):
-        return self.PrototypeKmeansDivergence(input_, conversation_length, target)
-
-
     def _train_batch(self, batch, noise_batch):
-        batch_utterances, utterance_sequence_length, conversation_length, padded_labels = batch
+        batch_utterances, utterance_sequence_length, conversation_length, padded_labels, padded_speakers = batch
         # if self.args.model == 'TS':
         #     if self.args.add_noise:
         #         softmax_masked_scores = self.ensemble_model(noise_batch)
@@ -94,24 +85,46 @@ class SupervisedTrainer(object):
                 attentive_repre = self.ensemble_model(batch)
             # [batch_size, max_conversation_length, 5]
             # print("attentive_repre", attentive_repre.shape)
+
+            if self.args.adopt_speaker:
+                attentive_repre = self.add_speaker(attentive_repre, padded_speakers)
             
             # Added
             if torch.any(attentive_repre.isnan()):
                 return "skip", 0, 0, 0
             
             
-            loss_1 = self.calculate_NCE_criterion(attentive_repre, conversation_length, padded_labels)
-            loss_2 = self.calculate_prototype_criterion(attentive_repre, conversation_length, padded_labels)
-            loss_3 = self.calculate_matching_criterion(attentive_repre, conversation_length, padded_labels)
+            if self.args.train_mode == 'supervised':
+            
+                loss_1 = self.SupConLossNCE(attentive_repre, conversation_length, padded_labels)
+                loss_2 = self.SupConLossPrototype(attentive_repre, conversation_length, padded_labels)
+                loss_3 = self.PrototypeKmeansDivergence(attentive_repre, conversation_length, padded_labels)
 
-            loss = constant.NCE_weightage * loss_1 + constant.Prototype_weightage * loss_2 + (1 - constant.NCE_weightage - constant.Prototype_weightage) * loss_3
-            # loss = loss_2
-            self.optimizer.zero_grad()
-            loss.backward()
-            self.optimizer.step()
-            # print("NCE:", loss_1.data.item())
-            # print("Prototype:", loss_2.data.item())
-            return loss.data.item(), 0, 0, len(batch_utterances)
+                loss = constant.NCE_weightage * loss_1 + constant.Prototype_weightage * loss_2 + (1 - constant.NCE_weightage - constant.Prototype_weightage) * loss_3
+
+                self.optimizer.zero_grad()
+                loss.backward()
+                self.optimizer.step()
+                # print("NCE:", loss_1.data.item())
+                # print("Prototype:", loss_2.data.item())
+                return loss.data.item(), 0, 0, len(batch_utterances)
+
+            elif self.args.train_mode == 'unsupervised':
+
+                loss_1 = self.Triplet(attentive_repre, conversation_length, padded_labels)
+
+                padded_labels = self.generate_label(attentive_repre, conversation_length, padded_labels.size())
+                loss_2 = self.SupConLossPrototype(attentive_repre, conversation_length, padded_labels)
+
+                NCE_weightage = (constant.NCE_weightage / (constant.NCE_weightage + constant.Prototype_weightage))
+                loss = NCE_weightage * loss_1 + (1 - NCE_weightage) * loss_2
+
+                self.optimizer.zero_grad()
+                loss.backward()
+                self.optimizer.step()
+
+                return loss.data.item(), 0, 0, len(batch_utterances)
+
         # if self.args.model == 'T':
         #     if self.args.add_noise:
         #         teacher_scores, teacher_log_scores = self.teacher_model(noise_batch)
@@ -254,10 +267,13 @@ class SupervisedTrainer(object):
         truth_labels = []
         with torch.no_grad():
             for batch in test_loader:
-                batch_utterances, utterance_sequence_length, conversation_length_list, padded_labels = batch
+                batch_utterances, utterance_sequence_length, conversation_length_list, padded_labels, padded_speakers = batch
                 # conversation_length_list = [sum(session_sequence_length[i]) for i in range(len(session_sequence_length))]
                 utterance_repre, shape = self.ensemble_model.utterance_encoder(batch_utterances, utterance_sequence_length)
                 attentive_repre = self.ensemble_model.attentive_encoder(batch_utterances, utterance_repre, shape)
+
+                if self.args.adopt_speaker:
+                    attentive_repre = self.add_speaker(attentive_repre, padded_speakers)
 
                 # Added
                 for i in range(attentive_repre.shape[0]):
@@ -325,11 +341,14 @@ class SupervisedTrainer(object):
         truth_labels = []
         with torch.no_grad():
             for batch in tqdm(test_loader):
-                batch_utterances, _, labels, utterance_sequence_length, \
-                        _, _, session_sequence_length, max_conversation_length, _ = batch
-                conversation_length_list = [sum(session_sequence_length[i]) for i in range(len(session_sequence_length))]
+                # Adjusted
+                batch_utterances, utterance_sequence_length, conversation_length_list, padded_labels, padded_speakers = batch
+                # conversation_length_list = [sum(session_sequence_length[i]) for i in range(len(session_sequence_length))]
                 utterance_repre, shape = self.ensemble_model.utterance_encoder(batch_utterances, utterance_sequence_length)
                 attentive_repre = self.ensemble_model.attentive_encoder(batch_utterances, utterance_repre, shape)
+
+                if self.args.adopt_speaker:
+                    attentive_repre = self.add_speaker(attentive_repre, padded_speakers)
 
                 # Added
                 for i in range(attentive_repre.shape[0]):
@@ -353,8 +372,9 @@ class SupervisedTrainer(object):
 
                 # predicted_labels.extend(batch_labels)
                 
+                # Adjusted
                 for j in range(len(conversation_length_list)):
-                    truth_labels.append(labels[j][:conversation_length_list[j]].tolist())
+                    truth_labels.append(padded_labels[j][:conversation_length_list[j]].cpu().tolist())
         assert len(predicted_labels) == len(truth_labels)
 
         utils.save_predicted_results(predicted_labels, truth_labels, self.current_time, step_cnt, mode='test')
@@ -367,3 +387,23 @@ class SupervisedTrainer(object):
         log_msg = "purity_score: {}, nmi_score: {}, ari_score: {}, shen_f_score: {}".format(
                         round(purity_score, 4), round(nmi_score, 4), round(ari_score, 4), round(shen_f_score, 4))
         print(log_msg)
+
+    def add_speaker(self, attentive_repre, padded_speakers):
+        return torch.cat((attentive_repre, padded_speakers.unsqueeze(-1)), dim=-1)
+
+    def generate_label(self, attentive_repre, conversation_length_list, shape):
+        if not torch.cuda.is_available():
+            generated_labels = torch.LongTensor(shape).fill_(-1)  
+        else:
+            generated_labels = torch.cuda.LongTensor(shape).fill_(-1)
+
+        for i in range(attentive_repre.shape[0]):
+            dialogue_embedding = attentive_repre[i, :conversation_length_list[i], :].cpu()
+            cluster_number = utils.calculateK(dialogue_embedding.detach().numpy(), conversation_length_list[i], self.args.Kmeans_metric)
+            cluster_label = KMeans(n_clusters=cluster_number, random_state=0).fit(dialogue_embedding.detach().numpy()).labels_
+            cluster_label = utils.order_cluster_labels(cluster_label.tolist())
+            if not torch.cuda.is_available():
+                generated_labels[i, :conversation_length_list[i]] = torch.LongTensor(cluster_label)
+            else:
+                generated_labels[i, :conversation_length_list[i]] = torch.cude.LongTensor(cluster_label)
+        return generated_labels
