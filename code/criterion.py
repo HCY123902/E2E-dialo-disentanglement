@@ -404,7 +404,7 @@ class PrototypeKmeansDivergence(nn.Module):
             # print("Checkpoint 5 prototypes", prototypes)
 
             dialogue_cpu = dialogue.cpu().detach().numpy()
-            cluster_number = utils.calculateK(dialogue_cpu, dialogue_lengths[i], self.args.Kmeans_metric)
+            cluster_number = utils.calculateK(dialogue_cpu, dialogue_lengths[i], self.Kmeans_metric)
             # cluster_number = max(int((dialogue_lengths[i] / float(constant.utterance_max_length)) * (constant.state_num)), 1)
             # print("cluster number", cluster_number)
             
