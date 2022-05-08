@@ -37,7 +37,7 @@ def extract_input_data(content, mode, train_mode='supervised'):
             # Added for speaker
             speaker = one_uttr['speaker']
             if speaker not in speaker_map:
-                speaker_map[speaker] = len(speakers)
+                speaker_map[speaker] = len(speaker_map)
             speaker = speaker_map.get(speaker)
 
             # Added for unsupervised training

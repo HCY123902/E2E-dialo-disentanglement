@@ -23,7 +23,7 @@ import constant
 random.seed(constant.seed)
 torch.manual_seed(constant.seed)
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+# os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 os.environ['OMP_NUM_THREADS'] = '8'
 os.environ['MKL_NUM_THREADS'] = '8'
 torch.set_num_threads(8)
@@ -36,11 +36,11 @@ def train(args):
     utils.make_all_dirs(current_time)
     if args.load_var: 
         all_utterances, labels, word_dict, speakers = read_data(load_var=args.load_var, input_=None, mode='train', train_mode=args.train_mode)
-        dev_utterances, dev_labels, _, speakers = read_data(load_var=args.load_var, input_=None, mode='dev', train_mode=args.train_mode)
+        dev_utterances, dev_labels, _, dev_speakers = read_data(load_var=args.load_var, input_=None, mode='dev', train_mode=args.train_mode)
     else:
         all_utterances, labels, word_dict, speakers = read_data(load_var=args.load_var, \
                 input_=os.path.join(constant.data_path, "entangled_train.json"), mode='train', train_mode=args.train_mode)
-        dev_utterances, dev_labels, _, speakers = read_data(load_var=args.load_var, \
+        dev_utterances, dev_labels, _, dev_speakers = read_data(load_var=args.load_var, \
                 input_=os.path.join(constant.data_path, "entangled_dev.json"), mode='dev', train_mode=args.train_mode)
             
     word_emb = build_embedding_matrix(word_dict, glove_loc=args.glove_loc, \
@@ -60,12 +60,12 @@ def train(args):
         utils.save_or_read_input(os.path.join(constant.save_input_path, "dev_labels.pk"), \
                                     rw='w', input_obj=dev_labels)
      
-    train_dataloader = TrainDataLoader(all_utterances, labels, word_dict, speakers)
+    train_dataloader = TrainDataLoader(all_utterances, labels, word_dict, speakers, train_mode = args.train_mode)
     if args.add_noise:
         noise_train_dataloader = TrainDataLoader(all_utterances, labels, word_dict, speakers, add_noise=True)
     else:
         noise_train_dataloader = None
-    dev_dataloader = TrainDataLoader(dev_utterances, dev_labels, word_dict, speakers, name='dev')
+    dev_dataloader = TrainDataLoader(dev_utterances, dev_labels, word_dict, dev_speakers, name='dev', train_mode = args.train_mode)
     
     logger_name = os.path.join(constant.log_path, "{}.txt".format(current_time))
     LOG_FORMAT = '%(asctime)s %(name)-12s %(levelname)-8s %(message)s'
@@ -103,9 +103,9 @@ def train(args):
 
 def test(args):
     if args.load_var:
-        test_utterances, test_labels, word_dict, speakers = read_data(load_var=args.load_var, input_=None, mode='test')
+        test_utterances, test_labels, word_dict, test_speakers = read_data(load_var=args.load_var, input_=None, mode='test')
     else:
-        test_utterances, test_labels, word_dict, speakers = read_data(load_var=args.load_var, \
+        test_utterances, test_labels, word_dict, test_speakers = read_data(load_var=args.load_var, \
                 input_=os.path.join(constant.data_path, "entangled_{}.json".format(args.mode)), mode='test')
     
     if args.save_input:
@@ -117,7 +117,7 @@ def test(args):
     current_time = re.findall('.*model_(.+?)/.*', args.model_path)[0]
     step_cnt = re.findall('.step_(.+?)\.pkl', args.model_path)[0]
 
-    test_dataloader = TrainDataLoader(test_utterances, test_labels, word_dict, speakers, name='test', batch_size=4)
+    test_dataloader = TrainDataLoader(test_utterances, test_labels, word_dict, test_speakers, name='test', batch_size=4, train_mode = args.train_mode)
     
     ensemble_model = EnsembleModel(word_dict, word_emb=None, bidirectional=False)
     if torch.cuda.is_available():

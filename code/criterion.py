@@ -11,6 +11,8 @@ import numpy as np
 from sklearn.cluster import KMeans
 from scipy.optimize import linear_sum_assignment
 
+import utils
+
 class SupConLossNCE(nn.Module):
     """Supervised Contrastive Learning: https://arxiv.org/pdf/2004.11362.pdf.
     It also supports the unsupervised contrastive loss in SimCLR"""
@@ -345,9 +347,10 @@ class SupConLossPrototype(nn.Module):
         return result.mean()
 
 class PrototypeKmeansDivergence(nn.Module):
-    def __init__(self, print_detail=False):
+    def __init__(self, print_detail=False, Kmeans_metric='silhouette'):
         super(PrototypeKmeansDivergence, self).__init__()
         self.print_detail=print_detail
+        self.Kmeans_metric = Kmeans_metric
 
     def forward(self, features, dialogue_lengths, labels=None, mask=None):
         device = (torch.device('cuda')
@@ -400,10 +403,13 @@ class PrototypeKmeansDivergence(nn.Module):
 
             # print("Checkpoint 5 prototypes", prototypes)
 
-            cluster_number = max(int((dialogue_lengths[i] / float(constant.utterance_max_length)) * (constant.state_num)), 1)
+            dialogue_cpu = dialogue.cpu().detach().numpy()
+            cluster_number = utils.calculateK(dialogue_cpu, dialogue_lengths[i], self.args.Kmeans_metric)
+            # cluster_number = max(int((dialogue_lengths[i] / float(constant.utterance_max_length)) * (constant.state_num)), 1)
             # print("cluster number", cluster_number)
             
-            k_means = KMeans(n_clusters=cluster_number, random_state=0).fit(dialogue.cpu().detach().numpy())
+            
+            k_means = KMeans(n_clusters=cluster_number, random_state=0).fit(dialogue_cpu)
 
             prototypes_numpy = prototypes.cpu().detach().numpy()
             
@@ -443,47 +449,70 @@ class TripletLoss(nn.Module):
         self.print_detail=print_detail
         self.log_softmax = torch.nn.LogSoftmax(dim=0)
 
-    def forward(self, features, dialogue_lengths, labels=None, mask=None):
+    def forward(self, features, dialogue_lengths, labels, pos_mask, sample_mask):
         device = (torch.device('cuda')
                   if torch.cuda.is_available()
                   else torch.device('cpu'))
         result = torch.zeros(features.shape[0], requires_grad=True).to(device)
 
-        neg_pool = [(k, p) for k in range(features.size(0)) for p in range(dialogue_lengths[k])]
+        loss = None
 
         for i, dialogue in enumerate(features):
-            loss = torch.zeros(1, requires_grad=True).to(device)
             # Discard padded utterances
-
             dialogue = dialogue[:dialogue_lengths[i], :]
             dialogue_labels = labels[i, :dialogue_lengths[i]]
-            dialogue_labels = dialogue_labels.contiguous().view(-1, 1)
-            for j, utterance in enumerate(dialogue):
-                label = dialogue_labels[j]
-                pos_pool = dialogue_labels==label
-                pos_pool[j] = False
-                pos_pool = (pos_pool).nonzero().squeeze(1).cpu().detach().numpy().astype(int)
-                if np.sum(pos_pool) > 0:
-                    # Draw 1 positive sample with uniform distribution
-                    pos_sample = dialogue[np.random.choice(pos_pool, 1), :]
-                # neg_dialogue = np.random.choice(range(features.size(0)).remove(i), 1)
-                # neg_utterance = np.random.choice(range(dialogue_lengths[neg_dialogue]), 1)
-                neg_sample = neg_pool[np.random.choice(len(neg_pool), features.size(0))]
-                neg_sample = features[[n[0] for n in neg_sample], [n[1] for n in neg_sample], :].contiguous()
+            dialogue_labels = dialogue_labels.contiguous().view(-1)
 
-                contrast_feature = torch.cat((pos_sample.unsqueeze(0), neg_sample), dim=0)
-                
-                print(contrast_feature.size())
+            resized_features = features.reshape(-1, features.size(2)).contiguous()
 
-                # [1, sample_size]
-                anchor_dot_contrast = torch.div(
-                    torch.matmul(utterance.unsqueeze(0), contrast_feature.T),
-                    self.temperature)
+            contrast_feature = resized_features
+            anchor_feature = dialogue
 
-                print(anchor_dot_contrast.size())
+            anchor_dot_contrast = torch.div(
+                torch.matmul(anchor_feature, contrast_feature.T),
+                self.temperature)
 
-                loss = loss - (self.temperature / self.base_temperature) * (self.log_softmax(anchor_dot_contrast))[0]
-            
+            # Numerical stability
+            logits_max, _ = torch.max(anchor_dot_contrast, dim=1, keepdim=True)
+            logits = anchor_dot_contrast - logits_max.detach()
+
+            # print("logits", logits.size(), "sample_mask", sample_mask.size())
+            exp_logits = torch.exp(logits) * sample_mask[i][:dialogue_lengths[i]]
+            numerator_logits = (logits * pos_mask[i][:dialogue_lengths[i]]).sum(1)
+            denominator_logits = torch.log(exp_logits.sum(1))
+
+            loss = - (self.temperature / self.base_temperature) * (numerator_logits - denominator_logits)
+
+
+            # for j, utterance in enumerate(dialogue):
+            #     label = dialogue_labels[j]
+            #     pos_pool = dialogue_labels==label
+            #     pos_pool[j] = False
+            #     pos_pool = (pos_pool).nonzero().squeeze(1).cpu().detach().numpy().astype(int)
+
+            #     neg_sample = neg_pool[np.random.choice(len(neg_pool), features.size(0))]
+            #     neg_sample = features[[n[0] for n in neg_sample], [n[1] for n in neg_sample], :].contiguous()
+            #     if np.sum(pos_pool) == 0:
+            #         continue
+            #     # Draw 1 positive sample with uniform distribution
+            #     pos_sample = dialogue[np.random.choice(pos_pool, 1), :]
+            #     contrast_feature = torch.cat((pos_sample, neg_sample), dim=0)
+
+            #     # print(contrast_feature.size())
+
+            #     # [1, sample_size]
+            #     anchor_dot_contrast = torch.div(
+            #         torch.matmul(utterance.unsqueeze(0), contrast_feature.T),
+            #         self.temperature)
+
+            #     # print(anchor_dot_contrast.size())
+
+            #     if loss == None:
+            #         loss = - (self.temperature / self.base_temperature) * (self.log_softmax(anchor_dot_contrast))[0, 0]
+            #     else:
+            #         loss = loss - (self.temperature / self.base_temperature) * (self.log_softmax(anchor_dot_contrast))[0, 0]
+            # loss = loss / dialogue_lengths[i]
+
             if torch.any(loss.isnan()):
                 print("NCE containing nan", loss)
                 print("Corresponding NCE dialogue containing nan", dialogue)
@@ -492,7 +521,8 @@ class TripletLoss(nn.Module):
                 loss = loss[~loss.isnan()]
             
 #             print("Checkpoint 5 loss", loss)
-            loss = loss / dialogue_lengths[i]
+            
+            loss = loss.mean()
 
             result[i] = loss
     

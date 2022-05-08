@@ -28,7 +28,7 @@ class SupervisedTrainer(object):
         self.SupConLossPrototype = criterion.SupConLossPrototype(temperature=constant.temperature, base_temperature=constant.base_temperature, print_detail=args.print_detail)
 
         if self.args.train_mode == 'supervised':
-            self.PrototypeKmeansDivergence = criterion.PrototypeKmeansDivergence(print_detail=args.print_detail)
+            self.PrototypeKmeansDivergence = criterion.PrototypeKmeansDivergence(print_detail=args.print_detail, Kmeans_metric=args.Kmeans_metric)
         elif self.args.train_mode == 'unsupervised':
             self.Triplet = criterion.TripletLoss(temperature=constant.temperature, base_temperature=constant.base_temperature, print_detail=args.print_detail)
 
@@ -54,7 +54,7 @@ class SupervisedTrainer(object):
         return loss
 
     def _train_batch(self, batch, noise_batch):
-        batch_utterances, utterance_sequence_length, conversation_length, padded_labels, padded_speakers = batch
+        batch_utterances, utterance_sequence_length, conversation_length, padded_labels, padded_speakers, pos_mask, sample_mask = batch
         # if self.args.model == 'TS':
         #     if self.args.add_noise:
         #         softmax_masked_scores = self.ensemble_model(noise_batch)
@@ -110,7 +110,7 @@ class SupervisedTrainer(object):
 
             elif self.args.train_mode == 'unsupervised':
 
-                loss_1 = self.Triplet(attentive_repre, conversation_length, padded_labels)
+                loss_1 = self.Triplet(attentive_repre, conversation_length, padded_labels, pos_mask, sample_mask)
 
                 padded_labels = self.generate_label(attentive_repre, conversation_length, padded_labels.size())
                 loss_2 = self.SupConLossPrototype(attentive_repre, conversation_length, padded_labels)
@@ -266,7 +266,7 @@ class SupervisedTrainer(object):
         truth_labels = []
         with torch.no_grad():
             for batch in test_loader:
-                batch_utterances, utterance_sequence_length, conversation_length_list, padded_labels, padded_speakers = batch
+                batch_utterances, utterance_sequence_length, conversation_length_list, padded_labels, padded_speakers, _, _ = batch
                 # conversation_length_list = [sum(session_sequence_length[i]) for i in range(len(session_sequence_length))]
                 utterance_repre, shape = self.ensemble_model.utterance_encoder(batch_utterances, utterance_sequence_length)
                 attentive_repre = self.ensemble_model.attentive_encoder(batch_utterances, utterance_repre, shape)
@@ -341,7 +341,7 @@ class SupervisedTrainer(object):
         with torch.no_grad():
             for batch in tqdm(test_loader):
                 # Adjusted
-                batch_utterances, utterance_sequence_length, conversation_length_list, padded_labels, padded_speakers = batch
+                batch_utterances, utterance_sequence_length, conversation_length_list, padded_labels, padded_speakers, _, _ = batch
                 # conversation_length_list = [sum(session_sequence_length[i]) for i in range(len(session_sequence_length))]
                 utterance_repre, shape = self.ensemble_model.utterance_encoder(batch_utterances, utterance_sequence_length)
                 attentive_repre = self.ensemble_model.attentive_encoder(batch_utterances, utterance_repre, shape)
@@ -391,18 +391,19 @@ class SupervisedTrainer(object):
         return torch.cat((attentive_repre, padded_speakers.unsqueeze(-1)), dim=-1)
 
     def generate_label(self, attentive_repre, conversation_length_list, shape):
-        if not torch.cuda.is_available():
-            generated_labels = torch.LongTensor(shape).fill_(-1)  
-        else:
-            generated_labels = torch.cuda.LongTensor(shape).fill_(-1)
+        device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+        # if not torch.cuda.is_available():
+        generated_labels = torch.LongTensor(shape).fill_(-1)  
+        # else:
+        #     generated_labels = torch.cuda.LongTensor(shape).fill_(-1)
 
         for i in range(attentive_repre.shape[0]):
             dialogue_embedding = attentive_repre[i, :conversation_length_list[i], :].cpu()
             cluster_number = utils.calculateK(dialogue_embedding.detach().numpy(), conversation_length_list[i], self.args.Kmeans_metric)
             cluster_label = KMeans(n_clusters=cluster_number, random_state=0).fit(dialogue_embedding.detach().numpy()).labels_
             cluster_label = utils.order_cluster_labels(cluster_label.tolist())
-            if not torch.cuda.is_available():
-                generated_labels[i, :conversation_length_list[i]] = torch.LongTensor(cluster_label)
-            else:
-                generated_labels[i, :conversation_length_list[i]] = torch.cude.LongTensor(cluster_label)
-        return generated_labels
+            # if not torch.cuda.is_available():
+            generated_labels[i, :conversation_length_list[i]] = torch.LongTensor(cluster_label)
+            # else:
+            #     generated_labels[i, :conversation_length_list[i]] = torch.cuda.LongTensor(cluster_label)
+        return generated_labels.to(device)
