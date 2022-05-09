@@ -498,11 +498,11 @@ def calculateK(dialogue_embedding, dialogue_length, method):
         for K in range(1, min(dialogue_length, constant.state_num) + 1):
             kmeans = KMeans(n_clusters=K, random_state=0)
             kmeans.fit(dialogue_embedding)
-            scores.append([K, kmeans.inertia_])
+            scores.append(np.array([K, kmeans.inertia_]))
 
-        rate = [(scores[i][0], calculate_angle(scores[i-1], scores[i], scores[i+1])) for i in range(1, dialogue_length - 1)]
+        rate = [(scores[i][0], calculate_angle(scores[i-1], scores[i], scores[i+1])) for i in range(1, len(scores) - 1)]
         if n == 1:
-            return min(rate, key=lambda x:x[1])[0]
+            return int(min(rate, key=lambda x:x[1])[0])
             
         rate.sort(key=lambda x:x[1])
         
