@@ -79,9 +79,9 @@ class SupervisedTrainer(object):
             # loss_1 = self.calculate_loss(softmax_masked_scores, label_for_loss, loss_mask)
 
             if self.args.add_noise:
-                attentive_repre = self.ensemble_model(noise_batch)
+                attentive_repre, _ = self.ensemble_model(noise_batch)
             else:
-                attentive_repre = self.ensemble_model(batch)
+                attentive_repre, k_prob = self.ensemble_model(batch)
             # [batch_size, max_conversation_length, 5]
             # print("attentive_repre", attentive_repre.shape)
 

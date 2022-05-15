@@ -22,9 +22,18 @@ class EnsembleModel(nn.Module):
         #     self.scores_calculator = ScoresCalculator(softmax_func=nn.Softmax, teacher=True)
         # else:
         #     self.scores_calculator = ScoresCalculator(softmax_func=nn.LogSoftmax)
+        self.k_predictor = torch.nn.Sequential(
+            torch.nn.Linear(constant.dialogue_max_length * constant.utterance_max_length, 512),
+            torch.nn.ReLU(),
+            torch.nn.Linear(512, constant.state_num)
+        )
+
+        self.m = torch.nn.Softmax(dim=1)
+        self.device = torch.device('cuda:0') if torch.cuda.is_available() else torch.device('cpu')
+
     
     def forward(self, batch):
-        batch_utterances, utterance_sequence_length, conversation_lengths, padded_labels, _, _, _ = batch
+        batch_utterances, utterance_sequence_length, conversation_lengths, padded_labels, padded_speakers, _, _ = batch
         utterance_repre, shape = self.utterance_encoder(batch_utterances, utterance_sequence_length)
         # [batch_size, max_conversation_length, hidden_size]
         attentive_repre = self.attentive_encoder(batch_utterances, utterance_repre, shape)
@@ -41,7 +50,20 @@ class EnsembleModel(nn.Module):
         # # [batch_size, max_conversation_length, 5]
         # return softmax_masked_scores
 
-        return attentive_repre
+        batch_size = attentive_repre.size(0)
+    
+        k_logtis = self.k_predictor(torch.concat((self.pad(attentive_repre).reshape(batch_size, -1), padded_speakers), dim=1))
+        
+        k_prob = self.m(k_logtis)
+
+        return attentive_repre, k_prob
+
+    def pad(self, attentive_repre):
+        s = attentive_repre.size()
+        padded = torch.zeros((s[0], constant.dialogue_max_length, constant.utterance_max_length), dtype=torch.float, requires_grad=True).to(self.device)
+        
+        padded[:s[0], :s[1], :s[2]] = attentive_repre
+        return padded
 
 
 class UtteranceEncoder(nn.Module):
@@ -256,6 +278,4 @@ class ScoresCalculator(nn.Module):
             return softmax_masked_scores, log_softmax_scores
         else:
             return softmax_masked_scores
-
-
 
