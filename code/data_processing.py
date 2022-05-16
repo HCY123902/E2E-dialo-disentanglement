@@ -75,11 +75,6 @@ def extract_input_data(content, mode, train_mode='supervised'):
     labels = [t[1] for t in zipped_list]
     speakers = [t[2] for t in zipped_list]
 
-    # Added
-    all_utterances = all_utterances[:len(all_utterances)//10]
-    labels = labels[:len(all_utterances)]
-    speakers = speakers[:len(all_utterances)]
-    
     return all_utterances, labels, speakers
 
 def build_word_dict(all_utterances):
