@@ -94,12 +94,10 @@ class SupervisedTrainer(object):
             
             
             if self.args.train_mode == 'supervised':
-
-                k = torch.argmax(k_prob, dim=1)
             
                 loss_1 = self.SupConLossNCE(attentive_repre, conversation_length, padded_labels)
                 loss_2 = self.SupConLossPrototype(attentive_repre, conversation_length, padded_labels)
-                loss_3 = self.PrototypeKmeansDivergence(attentive_repre, conversation_length, padded_labels, k=k)
+                loss_3 = self.PrototypeKmeansDivergence(attentive_repre, conversation_length, padded_labels, k_prob=k_prob)
 
                 loss = constant.NCE_weightage * loss_1 + constant.Prototype_weightage * loss_2 + (1 - constant.NCE_weightage - constant.Prototype_weightage) * loss_3
 
