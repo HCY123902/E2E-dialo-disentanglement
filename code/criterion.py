@@ -352,11 +352,12 @@ class PrototypeKmeansDivergence(nn.Module):
         self.print_detail=print_detail
         self.Kmeans_metric = Kmeans_metric
 
-    def forward(self, features, dialogue_lengths, labels=None, mask=None):
+    def forward(self, features, dialogue_lengths, labels=None, mask=None, k_prob=None):
         device = (torch.device('cuda')
                   if torch.cuda.is_available()
                   else torch.device('cpu'))
         result = torch.zeros(features.shape[0]).to(device)
+        k = torch.argmax(k_prob, dim=1) + 1
 
         for i, dialogue in enumerate(features):
             # Discard padded utterances  
@@ -403,16 +404,11 @@ class PrototypeKmeansDivergence(nn.Module):
 
             # print("Checkpoint 5 prototypes", prototypes)
 
-            dialogue_cpu = dialogue.cpu().detach().numpy()
-            cluster_number = utils.calculateK(dialogue_cpu, dialogue_lengths[i], self.Kmeans_metric)
-            # cluster_number = max(int((dialogue_lengths[i] / float(constant.utterance_max_length)) * (constant.state_num)), 1)
-            # print("cluster number", cluster_number)
-            
-            
-            k_means = KMeans(n_clusters=cluster_number, random_state=0).fit(dialogue_cpu)
+            dialogue_cpu = dialogue.cpu().detach().numpy()            
+            k_means = KMeans(n_clusters=k[i], random_state=0).fit(dialogue_cpu)
 
             prototypes_numpy = prototypes.cpu().detach().numpy()
-            
+
             squared_distance = np.array([[np.linalg.norm(prototype-center) for center in k_means.cluster_centers_] for prototype in prototypes_numpy])
 
             row_ind, col_ind = linear_sum_assignment(squared_distance)
@@ -424,6 +420,8 @@ class PrototypeKmeansDivergence(nn.Module):
               loss = loss + torch.dist(prototypes[r], torch.tensor(k_means.cluster_centers_[c]).to(device)).to(device)
             # Average distance between prototype and matched cluster center
             loss = loss / cnt
+
+            loss = 0.5 * loss + 0.5 * (-torch.log(k_prob[i, label_range - 1]))
             
             if torch.any(loss.isnan()):
                 print("Matching containing nan", loss)
