@@ -357,7 +357,6 @@ class PrototypeKmeansDivergence(nn.Module):
                   if torch.cuda.is_available()
                   else torch.device('cpu'))
         result = torch.zeros(features.shape[0]).to(device)
-        k = torch.argmax(k_prob, dim=1) + 1
 
         for i, dialogue in enumerate(features):
             # Discard padded utterances  
@@ -404,8 +403,9 @@ class PrototypeKmeansDivergence(nn.Module):
 
             # print("Checkpoint 5 prototypes", prototypes)
 
-            dialogue_cpu = dialogue.cpu().detach().numpy()            
-            k_means = KMeans(n_clusters=k[i], random_state=0).fit(dialogue_cpu)
+            dialogue_cpu = dialogue.cpu().detach().numpy()
+            k_val =  (torch.argmax(k_prob[i, :dialogue_lengths[i]]) + 1).item()
+            k_means = KMeans(n_clusters=k_val, random_state=0).fit(dialogue_cpu)
 
             prototypes_numpy = prototypes.cpu().detach().numpy()
 

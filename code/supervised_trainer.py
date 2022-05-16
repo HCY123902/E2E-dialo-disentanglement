@@ -267,11 +267,10 @@ class SupervisedTrainer(object):
         with torch.no_grad():
             for batch in test_loader:
                 batch_utterances, utterance_sequence_length, conversation_length_list, padded_labels, padded_speakers, _, _ = batch
-                # conversation_length_list = [sum(session_sequence_length[i]) for i in range(len(session_sequence_length))]
-                utterance_repre, shape = self.ensemble_model.utterance_encoder(batch_utterances, utterance_sequence_length)
-                attentive_repre, k_prob = self.ensemble_model.attentive_encoder(batch_utterances, utterance_repre, shape)
-
-                k = torch.argmax(k_prob, dim=1) + 1
+                # # conversation_length_list = [sum(session_sequence_length[i]) for i in range(len(session_sequence_length))]
+                # utterance_repre, shape = self.ensemble_model.utterance_encoder(batch_utterances, utterance_sequence_length)
+                # attentive_repre, k_prob = self.ensemble_model.attentive_encoder(batch_utterances, utterance_repre, shape)
+                attentive_repre, k_prob = self.ensemble_model(batch)
 
                 if self.args.adopt_speaker:
                     attentive_repre = self.add_speaker(attentive_repre, padded_speakers)
@@ -283,10 +282,10 @@ class SupervisedTrainer(object):
                     
                     # cluster_number = max(int((conversation_length_list[i] / float(constant.dialogue_max_length)) * (constant.state_num)), 1)
                     # cluster_number = utils.calculateK(dialogue_embedding.detach().numpy(), conversation_length_list[i], self.args.Kmeans_metric)
+                    k_val =  (torch.argmax(k_prob[i, :conversation_length_list[i]]) + 1).item()
+                    print("cluster_number", k_val)
                     
-                    print("cluster_number", k[i])
-                    
-                    cluster_label = KMeans(n_clusters=k[i], random_state=0).fit(dialogue_embedding.detach().numpy()).labels_
+                    cluster_label = KMeans(n_clusters=k_val, random_state=0).fit(dialogue_embedding.detach().numpy()).labels_
                     
                     print("cluster_label before ordering", cluster_label)
                     
@@ -344,11 +343,10 @@ class SupervisedTrainer(object):
             for batch in tqdm(test_loader):
                 # Adjusted
                 batch_utterances, utterance_sequence_length, conversation_length_list, padded_labels, padded_speakers, _, _ = batch
-                # conversation_length_list = [sum(session_sequence_length[i]) for i in range(len(session_sequence_length))]
-                utterance_repre, shape = self.ensemble_model.utterance_encoder(batch_utterances, utterance_sequence_length)
-                attentive_repre, k_prob = self.ensemble_model.attentive_encoder(batch_utterances, utterance_repre, shape)
-
-                k = torch.argmax(k_prob, dim=1) + 1
+                # # conversation_length_list = [sum(session_sequence_length[i]) for i in range(len(session_sequence_length))]
+                # utterance_repre, shape = self.ensemble_model.utterance_encoder(batch_utterances, utterance_sequence_length)
+                # attentive_repre, k_prob = self.ensemble_model.attentive_encoder(batch_utterances, utterance_repre, shape)
+                attentive_repre, k_prob = self.ensemble_model(batch)
 
                 if self.args.adopt_speaker:
                     attentive_repre = self.add_speaker(attentive_repre, padded_speakers)
@@ -363,7 +361,9 @@ class SupervisedTrainer(object):
                     dialogue_embedding = attentive_repre[i, :conversation_length_list[i], :].squeeze(0).cpu()
                     # cluster_number = max(int((conversation_length_list[i] / float(constant.dialogue_max_length)) * (constant.state_num)), 1)
                     # cluster_number = utils.calculateK(dialogue_embedding.detach().numpy(), conversation_length_list[i], self.args.Kmeans_metric)
-                    cluster_label = KMeans(n_clusters=k[i], random_state=0).fit(dialogue_embedding.detach().numpy()).labels_
+                    k_val =  (torch.argmax(k_prob[i, :conversation_length_list[i]]) + 1).item()
+
+                    cluster_label = KMeans(n_clusters=k_val, random_state=0).fit(dialogue_embedding.detach().numpy()).labels_
                     cluster_label = utils.order_cluster_labels(cluster_label.tolist())
                     predicted_labels.append(cluster_label)
                 
