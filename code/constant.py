@@ -1,7 +1,7 @@
 seed = 5
 utterance_max_length = 50
 dialogue_max_length = 50
-state_num = 16
+state_num = 6
 
 PAD_ID = 0
 UNK_ID = 1
@@ -15,10 +15,12 @@ learning_rate = 5e-5
 total_noise_ratio = 0.2
 noise_ratio = 0.05
 
+exp_name = "run_16_entire_set_with_matching_lr_5e-5_epoch_7_silhouette_mlp"
+
 save_input_path = "./input_saving/"
-log_path = "./log/"
-output_path = "./output/"
-save_model_path = "./saved_models/"
+log_path = "./log/{}/".format(exp_name)
+output_path = "./output/{}/".format(exp_name)
+save_model_path = "./saved_models/{}/".format(exp_name)
 glove_path = "../glove/glove.840B.300d.txt"
 data_path = "../dataset/"
 
