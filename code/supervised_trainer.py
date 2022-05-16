@@ -112,11 +112,11 @@ class SupervisedTrainer(object):
 
                 loss_1 = self.Triplet(attentive_repre, conversation_length, padded_labels, pos_mask, sample_mask)
 
-                padded_labels = self.generate_label(attentive_repre, conversation_length, padded_labels.size())
+                padded_labels, cluster_numbers = self.generate_label(attentive_repre, conversation_length, padded_labels.size())
                 loss_2 = self.SupConLossPrototype(attentive_repre, conversation_length, padded_labels)
-
-                NCE_weightage = (constant.NCE_weightage / (constant.NCE_weightage + constant.Prototype_weightage))
-                loss = NCE_weightage * loss_1 + (1 - NCE_weightage) * loss_2
+                loss_3 = -torch.mean(torch.log(k_prob[range(k_prob.size(0)), cluster_numbers-1]))
+                # NCE_weightage = (constant.NCE_weightage / (constant.NCE_weightage + constant.Prototype_weightage))
+                loss = constant.NCE_weightage * loss_1 + constant.Prototype_weightage * loss_2 + (1 - constant.NCE_weightage - constant.Prototype_weightage) * loss_3
 
                 self.optimizer.zero_grad()
                 loss.backward()
@@ -394,16 +394,18 @@ class SupervisedTrainer(object):
         device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
         # if not torch.cuda.is_available():
         generated_labels = torch.LongTensor(shape).fill_(-1)  
+        cluster_numbers = []
         # else:
         #     generated_labels = torch.cuda.LongTensor(shape).fill_(-1)
 
         for i in range(attentive_repre.shape[0]):
             dialogue_embedding = attentive_repre[i, :conversation_length_list[i], :].cpu()
             cluster_number = utils.calculateK(dialogue_embedding.detach().numpy(), conversation_length_list[i], self.args.Kmeans_metric)
+            cluster_numbers.append(cluster_number)
             cluster_label = KMeans(n_clusters=cluster_number, random_state=0).fit(dialogue_embedding.detach().numpy()).labels_
             cluster_label = utils.order_cluster_labels(cluster_label.tolist())
             # if not torch.cuda.is_available():
             generated_labels[i, :conversation_length_list[i]] = torch.LongTensor(cluster_label)
             # else:
             #     generated_labels[i, :conversation_length_list[i]] = torch.cuda.LongTensor(cluster_label)
-        return generated_labels.to(device)
+        return generated_labels.to(device), cluster_numbers

@@ -23,7 +23,7 @@ class EnsembleModel(nn.Module):
         # else:
         #     self.scores_calculator = ScoresCalculator(softmax_func=nn.LogSoftmax)
         self.k_predictor = torch.nn.Sequential(
-            torch.nn.Linear(constant.dialogue_max_length * constant.utterance_max_length, 512),
+            torch.nn.Linear(constant.dialogue_max_length * (constant.utterance_max_length + 1), 512),
             torch.nn.ReLU(),
             torch.nn.Linear(512, constant.state_num)
         )
@@ -52,19 +52,23 @@ class EnsembleModel(nn.Module):
 
         batch_size = attentive_repre.size(0)
     
-        k_logtis = self.k_predictor(torch.concat((self.pad(attentive_repre).reshape(batch_size, -1), padded_speakers), dim=1))
+        k_logtis = self.k_predictor(torch.concat((self.pad_dialogue(attentive_repre).reshape(batch_size, -1), self.pad_speaker(padded_speakers)), dim=1))
         
         k_prob = self.m(k_logtis)
 
         return attentive_repre, k_prob
 
-    def pad(self, attentive_repre):
+    def pad_dialogue(self, attentive_repre):
         s = attentive_repre.size()
-        padded = torch.zeros((s[0], constant.dialogue_max_length, constant.utterance_max_length), dtype=torch.float, requires_grad=True).to(self.device)
+        # padded = torch.zeros((s[0], constant.dialogue_max_length, constant.utterance_max_length), dtype=torch.float, requires_grad=True).to(self.device)
         
-        padded[:s[0], :s[1], :s[2]] = attentive_repre
+        # padded[:s[0], :s[1], :s[2]] = attentive_repre
+        padded = F.pad(attentive_repre, (0, constant.utterance_max_length - s[2], 0, constant.dialogue_max_length - s[1]), "constant", 0)
         return padded
-
+    def pad_speaker(self, speakers):
+        s = speakers.size()
+        padded = F.pad(speakers, (0, constant.dialogue_max_length - s[1]), "constant", 0)
+        return padded
 
 class UtteranceEncoder(nn.Module):
     def __init__(self, word_dict, word_emb=None, bidirectional=False, n_layers=1, input_dropout=0, \
