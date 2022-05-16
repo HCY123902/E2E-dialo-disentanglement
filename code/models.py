@@ -52,7 +52,7 @@ class EnsembleModel(nn.Module):
 
         batch_size = attentive_repre.size(0)
     
-        k_logtis = self.k_predictor(torch.concat((self.pad_dialogue(attentive_repre).reshape(batch_size, -1), self.pad_speaker(padded_speakers)), dim=1))
+        k_logtis = self.k_predictor(torch.cat((self.pad_dialogue(attentive_repre).reshape(batch_size, -1), self.pad_speaker(padded_speakers)), dim=1))
         
         k_prob = self.m(k_logtis)
 
