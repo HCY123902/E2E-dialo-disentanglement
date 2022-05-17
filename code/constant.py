@@ -15,7 +15,7 @@ learning_rate = 5e-5
 total_noise_ratio = 0.2
 noise_ratio = 0.05
 
-exp_name = "run_16_entire_set_with_matching_lr_5e-5_epoch_7_silhouette_mlp"
+exp_name = "run_17_entire_set_with_matching_lr_5e-5_epoch_7_silhouette_mlp"
 
 save_input_path = "./input_saving/"
 log_path = "./log/{}/".format(exp_name)
