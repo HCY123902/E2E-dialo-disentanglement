@@ -1,3 +1,4 @@
+from itertools import count
 import torch
 import torch.nn as nn
 import torch.nn.functional as F 
@@ -169,9 +170,9 @@ class SupervisedTrainer(object):
                                                     "step_{}.pkl".format(step_cnt))
                         torch.save(self.teacher_model.state_dict(), model_name)
                     else:
-                        purity_score, nmi_score, ari_score, shen_f_score = self.evaluate(dev_loader, step_cnt)
-                        log_msg = "purity_score: {}, nmi_score: {}, ari_score: {}, shen_f_score: {}".format(
-                            round(purity_score, 4), round(nmi_score, 4), round(ari_score, 4), round(shen_f_score, 4))
+                        purity_score, nmi_score, ari_score, shen_f_score, accuracy_k = self.evaluate(dev_loader, step_cnt)
+                        log_msg = "purity_score: {}, nmi_score: {}, ari_score: {}, shen_f_score: {}, accuracy_k: {}".format(
+                            round(purity_score, 4), round(nmi_score, 4), round(ari_score, 4), round(shen_f_score, 4), round(accuracy_k, 4))
                         self.logger.info(log_msg)
 
                         model_name = os.path.join(constant.save_model_path, "model_{}".format(self.current_time), \
@@ -264,6 +265,8 @@ class SupervisedTrainer(object):
     def evaluate(self, test_loader, step_cnt):
         predicted_labels = []
         truth_labels = []
+        count_k = 0
+        correct_k = 0
         with torch.no_grad():
             for batch in test_loader:
                 batch_utterances, utterance_sequence_length, conversation_length_list, padded_labels, padded_speakers, _, _ = batch
@@ -283,6 +286,11 @@ class SupervisedTrainer(object):
                     # cluster_number = max(int((conversation_length_list[i] / float(constant.dialogue_max_length)) * (constant.state_num)), 1)
                     # cluster_number = utils.calculateK(dialogue_embedding.detach().numpy(), conversation_length_list[i], self.args.Kmeans_metric)
                     k_val =  (torch.argmax(k_prob[i, :conversation_length_list[i]]) + 1).item()
+                    gold_k = (torch.max(padded_labels[i]) + 1).item()
+                    if gold_k == k_val:
+                        correct_k = correct_k + 1
+                    count_k = count_k + 1
+
                     print("cluster_number", k_val)
                     
                     cluster_label = KMeans(n_clusters=k_val, random_state=0).fit(dialogue_embedding.detach().numpy()).labels_
@@ -330,7 +338,9 @@ class SupervisedTrainer(object):
         ari_score = utils.compare(predicted_labels, truth_labels, 'ARI')
         shen_f_score = utils.compare(predicted_labels, truth_labels, 'shen_f')
 
-        return purity_score, nmi_score, ari_score, shen_f_score
+        accuracy_k = correct_k / count_k
+
+        return purity_score, nmi_score, ari_score, shen_f_score, accuracy_k
 
 
     def test(self, test_loader, model_path, step_cnt):
@@ -339,6 +349,8 @@ class SupervisedTrainer(object):
 
         predicted_labels = []
         truth_labels = []
+        count_k = 0
+        correct_k = 0
         with torch.no_grad():
             for batch in tqdm(test_loader):
                 # Adjusted
@@ -362,7 +374,10 @@ class SupervisedTrainer(object):
                     # cluster_number = max(int((conversation_length_list[i] / float(constant.dialogue_max_length)) * (constant.state_num)), 1)
                     # cluster_number = utils.calculateK(dialogue_embedding.detach().numpy(), conversation_length_list[i], self.args.Kmeans_metric)
                     k_val =  (torch.argmax(k_prob[i, :conversation_length_list[i]]) + 1).item()
-
+                    gold_k = (torch.max(padded_labels[i]) + 1).item()
+                    if gold_k == k_val:
+                        correct_k = correct_k + 1
+                    count_k = count_k + 1
                     cluster_label = KMeans(n_clusters=k_val, random_state=0).fit(dialogue_embedding.detach().numpy()).labels_
                     cluster_label = utils.order_cluster_labels(cluster_label.tolist())
                     predicted_labels.append(cluster_label)
@@ -386,9 +401,10 @@ class SupervisedTrainer(object):
         nmi_score = utils.compare(predicted_labels, truth_labels, 'NMI')
         ari_score = utils.compare(predicted_labels, truth_labels, 'ARI')
         shen_f_score = utils.compare(predicted_labels, truth_labels, 'shen_f')
+        accuracy_k = correct_k / count_k
 
-        log_msg = "purity_score: {}, nmi_score: {}, ari_score: {}, shen_f_score: {}".format(
-                        round(purity_score, 4), round(nmi_score, 4), round(ari_score, 4), round(shen_f_score, 4))
+        log_msg = "purity_score: {}, nmi_score: {}, ari_score: {}, shen_f_score: {}, accuracy_k: {}".format(
+                        round(purity_score, 4), round(nmi_score, 4), round(ari_score, 4), round(shen_f_score, 4), round(accuracy_k, 4))
         print(log_msg)
 
     def add_speaker(self, attentive_repre, padded_speakers):
