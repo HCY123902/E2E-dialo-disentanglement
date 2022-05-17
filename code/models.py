@@ -15,7 +15,8 @@ class EnsembleModel(nn.Module):
         self.utterance_encoder = UtteranceEncoder(word_dict, word_emb=word_emb, bidirectional=bidirectional, \
                                             n_layers=1, input_dropout=0, dropout=0, rnn_cell='lstm')
         self.attentive_encoder = SelfAttentiveEncoder()
-        # self.conversation_encoder = ConversationEncoder(bidirectional=bidirectional, n_layers=1, dropout=0, rnn_cell='lstm')
+        self.conversation_encoder = ConversationEncoder(bidirectional=bidirectional, n_layers=1, dropout=0, rnn_cell='lstm')
+        self.conversation_attentive_encoder = ConversationAttentiveEncoder()
         # self.session_encoder = SessionEncoder(bidirectional=bidirectional, n_layers=1, dropout=0, rnn_cell='lstm')
         # self.state_matrix_encoder = StateMatrixEncoder()
         # if bidirectional:
@@ -23,9 +24,9 @@ class EnsembleModel(nn.Module):
         # else:
         #     self.scores_calculator = ScoresCalculator(softmax_func=nn.LogSoftmax)
         self.k_predictor = torch.nn.Sequential(
-            torch.nn.Linear(constant.dialogue_max_length * (constant.utterance_max_length + 1), 512),
+            torch.nn.Linear(constant.hidden_size + 2, 128),
             torch.nn.ReLU(),
-            torch.nn.Linear(512, constant.state_num)
+            torch.nn.Linear(128, constant.state_num)
         )
 
         self.m = torch.nn.Softmax(dim=1)
@@ -38,8 +39,8 @@ class EnsembleModel(nn.Module):
         # [batch_size, max_conversation_length, hidden_size]
         attentive_repre = self.attentive_encoder(batch_utterances, utterance_repre, shape)
 
-        # # [batch_size, max_conversation_length, hidden_size]
-        # conversation_repre = self.conversation_encoder(attentive_repre)
+        # [batch_size, max_conversation_length, hidden_size]
+        conversation_repre = self.conversation_encoder(attentive_repre)
         # # [batch_size, max_conversation_length, hidden_size]
         # session_repre = self.session_encoder(attentive_repre, session_transpose_matrix)
         # # [batch_size, 4, max_session_length, hidden_size]
@@ -52,11 +53,16 @@ class EnsembleModel(nn.Module):
 
         batch_size = attentive_repre.size(0)
     
-        k_logtis = self.k_predictor(torch.cat((self.pad_dialogue(attentive_repre).reshape(batch_size, -1), self.pad_speaker(padded_speakers)), dim=1))
+        # k_logtis = self.k_predictor(torch.cat((self.pad_dialogue(attentive_repre).reshape(batch_size, -1), self.pad_speaker(padded_speakers)), dim=1))
+        conversation_attention = self.conversation_attentive_encoder(conversation_repre)
+        num_speakers = (torch.max(padded_speakers, dim=1, keepdim=True) + 1).to(self.device, dtype=torch.float)
+        conversation_len = torch.tensor(conversation_lengths).unsqueeze(1).to(self.device, dtype=torch.float)
+        k_logits = self.k_predictor(torch.cat(conversation_attention, num_speakers, conversation_lengths), dim=1)
         
-        k_prob = self.m(k_logtis)
+        k_prob = self.m(k_logits)
 
-        return attentive_repre, k_prob
+        # return attentive_repre, k_prob
+        return conversation_repre, k_prob
 
     def pad_dialogue(self, attentive_repre):
         s = attentive_repre.size()
@@ -65,6 +71,7 @@ class EnsembleModel(nn.Module):
         # padded[:s[0], :s[1], :s[2]] = attentive_repre
         padded = F.pad(attentive_repre, (0, constant.utterance_max_length - s[2], 0, constant.dialogue_max_length - s[1]), "constant", 0)
         return padded
+
     def pad_speaker(self, speakers):
         s = speakers.size()
         padded = F.pad(speakers, (0, constant.dialogue_max_length - s[1]), "constant", 0)
@@ -167,6 +174,30 @@ class ConversationEncoder(nn.Module):
             conv_output = self.bidirectional_projection(conv_output)
         return conv_output
 
+
+# Attention is on the utterance level
+class ConversationAttentiveEncoder(nn.Module):
+    def __init__(self, dropout=0.):
+        super(SelfAttentiveEncoder, self).__init__()
+        self.drop = nn.Dropout(dropout)
+        self.ws1 = nn.Linear(constant.hidden_size, constant.hidden_size, bias=False)
+        self.ws2 = nn.Linear(constant.hidden_size, 1, bias=False)
+        self.tanh = nn.Tanh()
+        self.softmax = nn.Softmax(dim=1)
+
+    def forward(self, inp, lstm_output, shape):
+        alphas = self.ws1(self.tanh(self.ws1(lstm_output))).squeeze(2) # [batch_size, max_conversation_length, 1] -> [batch_size, max_conversation_length]
+
+        transformed_inp = inp[:, :, 0] # [batch_size, max_conversation_length]
+
+        penalized_alphas = alphas + (
+            -10000 * (transformed_inp == constant.PAD_ID).float())
+            # [batch_size, max_conversation_length] + [batch_size, max_conversation_length]
+        alphas = (self.softmax(penalized_alphas)).unsqueeze(1)  # [batch_size, 1, max_conversation_length]
+
+        # [batch_size, 1, max_conversation_length] * [batch_size, max_conversation_length, hidden_size] -> [batch_size, hidden_size]
+        ret_output = torch.bmm(alphas, lstm_output).squeeze()
+        return ret_output
 
 class SessionEncoder(nn.Module):
     def __init__(self, bidirectional=False, n_layers=1, dropout=0, rnn_cell='lstm'):
