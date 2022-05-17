@@ -16,7 +16,10 @@ import constant
 
 # Added
 import faiss
+import kmeans_pytorch
 
+import warnings
+warnings.filterwarnings("ignore")
 
 def make_all_dirs(current_time):
     if not os.path.exists(constant.log_path):
@@ -405,59 +408,59 @@ def run_kmeans(x, args):
         
     return results
 
-def kmeans(data, k, max_time = 30):
-    n, m = data.shape
+# def kmeans(data, k, max_time = 30):
+#     n, m = data.shape
     
-    # print("diagloue embedding", data)
-    # print("diagloue embedding shape", data.shape)
+#     # print("diagloue embedding", data)
+#     # print("diagloue embedding shape", data.shape)
     
-    # ini = torch.randint(n, (k,)) #只有一维需要逗号
+#     # ini = torch.randint(n, (k,)) #只有一维需要逗号
     
-    ini = random.sample(range(n), k)
+#     ini = random.sample(range(n), k)
     
-    # print("Initial midpoint position", ini)
+#     # print("Initial midpoint position", ini)
     
-    midpoint = data[ini]   #随机选择k个起始点
-    time = 0
-    last_label = 0
-    while(time < max_time):
-        d = data.unsqueeze(0).repeat(k, 1, 1)   #shape k*n*m
-        mid_ = midpoint.unsqueeze(1).repeat(1,n,1) #shape k*n*m
+#     midpoint = data[ini]   #随机选择k个起始点
+#     time = 0
+#     last_label = 0
+#     while(time < max_time):
+#         d = data.unsqueeze(0).repeat(k, 1, 1)   #shape k*n*m
+#         mid_ = midpoint.unsqueeze(1).repeat(1,n,1) #shape k*n*m
         
-        assert ~torch.any(midpoint.isnan())
-        #print("time", time, "midpoint", midpoint)
+#         assert ~torch.any(midpoint.isnan())
+#         #print("time", time, "midpoint", midpoint)
         
-        dis = torch.sum((d - mid_)**2, 2)     #计算距离
+#         dis = torch.sum((d - mid_)**2, 2)     #计算距离
         
-        #print("time", time, "dis", dis)
+#         #print("time", time, "dis", dis)
         
-        label = dis.argmin(0)      #依据最近距离标记label
+#         label = dis.argmin(0)      #依据最近距离标记label
         
-        #print("time", time, "label", label)
+#         #print("time", time, "label", label)
         
-        if torch.sum(label != last_label)==0:  #label没有变化,跳出循环
-            return label        
-        last_label = label
+#         if torch.sum(label != last_label)==0:  #label没有变化,跳出循环
+#             return label        
+#         last_label = label
         
-        start = False
-        for i in range(k):  #更新类别中心点，作为下轮迭代起始
-            if i not in label:
-                k = k - 1
-                #print("{} is not in the label set".format(i))
-                continue
+#         start = False
+#         for i in range(k):  #更新类别中心点，作为下轮迭代起始
+#             if i not in label:
+#                 k = k - 1
+#                 #print("{} is not in the label set".format(i))
+#                 continue
             
-            kpoint = data[label==i]
+#             kpoint = data[label==i]
             
-            # if torch.any(kpoint.isnan()):
-            #     continue
+#             # if torch.any(kpoint.isnan()):
+#             #     continue
             
-            if not start:
-                start = True
-                midpoint = kpoint.mean(0).unsqueeze(0)
-            else:
-                midpoint = torch.cat([midpoint, kpoint.mean(0).unsqueeze(0)], 0)
-        time += 1
-    return label
+#             if not start:
+#                 start = True
+#                 midpoint = kpoint.mean(0).unsqueeze(0)
+#             else:
+#                 midpoint = torch.cat([midpoint, kpoint.mean(0).unsqueeze(0)], 0)
+#         time += 1
+#     return label
 
 def order_cluster_labels(cluster_labels):
     ordered_labels = []
@@ -469,56 +472,78 @@ def order_cluster_labels(cluster_labels):
 
     return ordered_labels
 
-def calculateK(dialogue_embedding, dialogue_length, method):
+def calculateK(dialogue_embedding, dialogue_length, method, device):
     average_K = max(int((dialogue_length / float(constant.dialogue_max_length)) * (constant.state_num)), 1)
     if dialogue_length <= 2:
         print("Returning average K as K since there are at most 2 utterances in this dialogue")
-        return average_K
+        return average_K, np.array([0])
     n  = 1
     if method == 'silhouette':
         scores = []
         for K in range(2, min(dialogue_length - 1, constant.state_num) + 1):
-            kmeans = KMeans(n_clusters=K, random_state=0)
-            labels = kmeans.fit(dialogue_embedding).labels_
-            if len(set(labels)) <= 1:
-                print("Returning average K as K since there are at most 2 distinct utterance embeddings in this dialogue")
-                return average_K
-            scores.append([K, silhouette_score(dialogue_embedding, labels)])
+            # kmeans = KMeans(n_clusters=K, random_state=0)
+
+            cluster_ids_x, cluster_centers = kmeans_pytorch.kmeans(X=dialogue_embedding, num_clusters=K, distance='euclidean', device=device, tqdm_flag=False)
+            labels = cluster_ids_x.cpu().detach().numpy()
+            
+            # if len(set(labels)) <= 1:
+            #     print("Returning average K as K since there are at most 2 distinct utterance embeddings in this dialogue")
+            #     return average_K
+            try:
+                scores.append([K, silhouette_score(dialogue_embedding.cpu().detach().numpy(), labels), labels])
+            except Exception as e:
+                print(e)
+                print("Returning average K as K")
+                cluster_ids_x, cluster_centers = kmeans_pytorch.kmeans(X=dialogue_embedding, num_clusters=average_K, distance='euclidean', device=device, tqdm_flag=False)
+                return average_K, cluster_ids_x.cpu().detach().numpy()
+            
         if n == 1:
-            return max(scores, key=lambda x:x[1])[0]
+            m = max(scores, key=lambda x:x[1])
+            return m[0], m[2]
 
         scores.sort(key=lambda x:x[1], reverse=True)
 
         # Select the K closer to average_K
-        scores = [(i[0], np.abs(i[0] - average_K)) for i in scores[:n]]
+        scores = [(i[0], np.abs(i[0] - average_K), i[2]) for i in scores[:n]]
 
-        return min(scores, key=lambda x:x[1])[0]
+        m = min(scores, key=lambda x:x[1])
+        return m[0], m[2]
+
     elif method == 'elbow':
         scores = []
         for K in range(1, min(dialogue_length, constant.state_num) + 1):
-            kmeans = KMeans(n_clusters=K, random_state=0)
-            kmeans.fit(dialogue_embedding)
-            scores.append(np.array([K, kmeans.inertia_]))
+            # kmeans = KMeans(n_clusters=K, random_state=0)
+            # kmeans.fit(dialogue_embedding)
 
-        rate = [(scores[i][0], calculate_angle(scores[i-1], scores[i], scores[i+1])) for i in range(1, len(scores) - 1)]
+            cluster_ids_x, cluster_centers = kmeans_pytorch.kmeans(X=dialogue_embedding, num_clusters=K, distance='euclidean', device=device, tqdm_flag=False)
+            labels = cluster_ids_x.cpu().detach().numpy()
+
+            closest_centers = cluster_centers[cluster_ids_x]
+            inertia = torch.linalg.norm(dialogue_embedding.cpu()-closest_centers, dim=1, ord=2)
+
+            scores.append(np.array([K, inertia, labels]))
+
+        rate = [(scores[i][0], calculate_angle(scores[i-1], scores[i], scores[i+1]), scores[i][2]) for i in range(1, len(scores) - 1)]
         if n == 1:
-            return int(min(rate, key=lambda x:x[1])[0])
+            m = min(rate, key=lambda x:x[1])
+            return int(m[0]), m[2]
             
         rate.sort(key=lambda x:x[1])
         
         # Select the K closer to average_K
-        rate = [(i[0], np.abs(i[0] - average_K)) for i in rate[:n]]
+        rate = [(i[0], np.abs(i[0] - average_K), i[2]) for i in rate[:n]]
 
-        return min(rate, key=lambda x:x[1])[0]
+        m = min(rate, key=lambda x:x[1])
+        return m[0], m[2]
 
     elif method == 'combined':
         # TODO
         print("Method not implemented, returning the average K")
-        return average_K
+        return average_K, None
 
     else:
         print("Method not defined, returning the average K")
-        return average_K
+        return average_K, None
     
 def calculate_angle(p1, p2, p3):
     e12 = np.linalg.norm(p1 - p2)
