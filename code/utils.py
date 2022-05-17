@@ -476,7 +476,7 @@ def calculateK(dialogue_embedding, dialogue_length, method, device):
     average_K = max(int((dialogue_length / float(constant.dialogue_max_length)) * (constant.state_num)), 1)
     if dialogue_length <= 2:
         print("Returning average K as K since there are at most 2 utterances in this dialogue")
-        return average_K, np.array([0])
+        return average_K, np.zeros(dialogue_length, dtype=int)
     n  = 1
     if method == 'silhouette':
         scores = []
@@ -494,6 +494,8 @@ def calculateK(dialogue_embedding, dialogue_length, method, device):
             except Exception as e:
                 print(e)
                 print("Returning average K as K")
+                if average_K <= 1:
+                    return average_K, np.zeros(dialogue_length, dtype=int)
                 cluster_ids_x, cluster_centers = kmeans_pytorch.kmeans(X=dialogue_embedding, num_clusters=average_K, distance='euclidean', device=device, tqdm_flag=False)
                 return average_K, cluster_ids_x.cpu().detach().numpy()
             
@@ -511,7 +513,10 @@ def calculateK(dialogue_embedding, dialogue_length, method, device):
 
     elif method == 'elbow':
         scores = []
-        for K in range(1, min(dialogue_length, constant.state_num) + 1):
+        closest_centers = torch.mean(dialogue_embedding, dim=0).repeat(dialogue_length, 1).cpu()
+        inertia = torch.linalg.norm(dialogue_embedding.cpu()-closest_centers, dim=1, ord=2)
+        scores.append(np.array([1, inertia, np.zeors(dialogue_length, dtype=int)]))
+        for K in range(2, min(dialogue_length, constant.state_num) + 1):
             # kmeans = KMeans(n_clusters=K, random_state=0)
             # kmeans.fit(dialogue_embedding)
 
