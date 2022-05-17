@@ -175,7 +175,7 @@ class ConversationEncoder(nn.Module):
         return conv_output
 
 
-# Attention is on the utterance level
+# Attention is on the conversation level
 class ConversationAttentiveEncoder(nn.Module):
     def __init__(self, dropout=0.):
         super(SelfAttentiveEncoder, self).__init__()
