@@ -54,15 +54,15 @@ class EnsembleModel(nn.Module):
         batch_size = attentive_repre.size(0)
     
         # k_logtis = self.k_predictor(torch.cat((self.pad_dialogue(attentive_repre).reshape(batch_size, -1), self.pad_speaker(padded_speakers)), dim=1))
-        conversation_attention = self.conversation_attentive_encoder(conversation_repre)
-        num_speakers = (torch.max(padded_speakers, dim=1, keepdim=True) + 1).to(self.device, dtype=torch.float)
+        conversation_attention = self.conversation_attentive_encoder(batch_utterances, conversation_repre, shape)
+        num_speakers = (torch.max(padded_speakers, dim=1, keepdim=True)[0] + 1).to(self.device, dtype=torch.float)
         conversation_len = torch.tensor(conversation_lengths).unsqueeze(1).to(self.device, dtype=torch.float)
-        k_logits = self.k_predictor(torch.cat(conversation_attention, num_speakers, conversation_lengths), dim=1)
+        k_logits = self.k_predictor(torch.cat((conversation_attention, num_speakers, conversation_len), dim=1))
         
         k_prob = self.m(k_logits)
 
-        # return attentive_repre, k_prob
-        return conversation_repre, k_prob
+        # return conversation_len, k_prob
+        return attentive_repre, k_prob
 
     def pad_dialogue(self, attentive_repre):
         s = attentive_repre.size()
@@ -178,7 +178,7 @@ class ConversationEncoder(nn.Module):
 # Attention is on the conversation level
 class ConversationAttentiveEncoder(nn.Module):
     def __init__(self, dropout=0.):
-        super(SelfAttentiveEncoder, self).__init__()
+        super(ConversationAttentiveEncoder, self).__init__()
         self.drop = nn.Dropout(dropout)
         self.ws1 = nn.Linear(constant.hidden_size, constant.hidden_size, bias=False)
         self.ws2 = nn.Linear(constant.hidden_size, 1, bias=False)
@@ -186,17 +186,28 @@ class ConversationAttentiveEncoder(nn.Module):
         self.softmax = nn.Softmax(dim=1)
 
     def forward(self, inp, lstm_output, shape):
-        alphas = self.ws1(self.tanh(self.ws1(lstm_output))).squeeze(2) # [batch_size, max_conversation_length, 1] -> [batch_size, max_conversation_length]
+        # print(lstm_output.size())
+
+        alphas = self.ws2(self.tanh(self.ws1(lstm_output))).squeeze(2) # [batch_size, max_conversation_length, 1] -> [batch_size, max_conversation_length]
 
         transformed_inp = inp[:, :, 0] # [batch_size, max_conversation_length]
+
+        # print(alphas.size())
+        # print(transformed_inp.size())
 
         penalized_alphas = alphas + (
             -10000 * (transformed_inp == constant.PAD_ID).float())
             # [batch_size, max_conversation_length] + [batch_size, max_conversation_length]
+        # print(penalized_alphas.size())
+
         alphas = (self.softmax(penalized_alphas)).unsqueeze(1)  # [batch_size, 1, max_conversation_length]
+
+        # print(alphas.size())
 
         # [batch_size, 1, max_conversation_length] * [batch_size, max_conversation_length, hidden_size] -> [batch_size, hidden_size]
         ret_output = torch.bmm(alphas, lstm_output).squeeze()
+        print(ret_output.size())
+
         return ret_output
 
 class SessionEncoder(nn.Module):
@@ -313,4 +324,5 @@ class ScoresCalculator(nn.Module):
             return softmax_masked_scores, log_softmax_scores
         else:
             return softmax_masked_scores
+
 
