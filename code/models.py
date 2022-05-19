@@ -206,7 +206,7 @@ class ConversationAttentiveEncoder(nn.Module):
 
         # [batch_size, 1, max_conversation_length] * [batch_size, max_conversation_length, hidden_size] -> [batch_size, hidden_size]
         ret_output = torch.bmm(alphas, lstm_output).squeeze()
-        print(ret_output.size())
+        # print(ret_output.size())
 
         return ret_output
 
