@@ -30,8 +30,8 @@ class SupervisedTrainer(object):
 
         if self.args.train_mode == 'supervised':
             self.PrototypeKmeansDivergence = criterion.PrototypeKmeansDivergence(print_detail=args.print_detail, Kmeans_metric=args.Kmeans_metric)
-        elif self.args.train_mode == 'unsupervised':
-            self.Triplet = criterion.TripletLoss(temperature=constant.temperature, base_temperature=constant.base_temperature, print_detail=args.print_detail)
+        # elif self.args.train_mode == 'unsupervised':
+        self.Triplet = criterion.TripletLoss(temperature=constant.temperature, base_temperature=constant.base_temperature, print_detail=args.print_detail)
 
         if optimizer == None:
             if self.args.model == 'T':
@@ -95,8 +95,8 @@ class SupervisedTrainer(object):
             
             
             if self.args.train_mode == 'supervised':
-            
-                loss_1 = self.SupConLossNCE(attentive_repre, conversation_length, padded_labels)
+                loss_1 = self.Triplet(attentive_repre, conversation_length, padded_labels, pos_mask, sample_mask)
+                # loss_1 = self.SupConLossNCE(attentive_repre, conversation_length, padded_labels)
                 loss_2 = self.SupConLossPrototype(attentive_repre, conversation_length, padded_labels)
                 loss_3 = self.PrototypeKmeansDivergence(attentive_repre, conversation_length, padded_labels, k_prob=k_prob)
 

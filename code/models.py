@@ -61,8 +61,8 @@ class EnsembleModel(nn.Module):
         
         k_prob = self.m(k_logits)
 
-        # return conversation_len, k_prob
-        return attentive_repre, k_prob
+        return conversation_repre, k_prob
+        # return attentive_repre, k_prob
 
     def pad_dialogue(self, attentive_repre):
         s = attentive_repre.size()

@@ -477,10 +477,16 @@ class TripletLoss(nn.Module):
             # print("logits", logits.size(), "sample_mask", sample_mask.size())
             exp_logits = torch.exp(logits) * sample_mask[i][:dialogue_lengths[i]]
             numerator_logits = (logits * pos_mask[i][:dialogue_lengths[i]]).sum(1)
+            
             denominator_logits = torch.log(exp_logits.sum(1))
+            
+            # Multiply with number of positive samples
+            denominator_logits = denominator_logits * (pos_mask[i][:dialogue_lengths[i]].sum(1))
 
             loss = - (self.temperature / self.base_temperature) * (numerator_logits - denominator_logits)
-
+            
+            # Average with number of positive samples
+            loss = loss / (pos_mask[i][:dialogue_lengths[i]].sum(1))
 
             # for j, utterance in enumerate(dialogue):
             #     label = dialogue_labels[j]
