@@ -570,7 +570,7 @@ class ConLossPrototype(nn.Module):
                     cluster_centers = dialogue.mean(dim=0, keepdim=True)
                 prototypes = cluster_centers.to(device)
                 
-                dialogue_labels = labels[i, :dialogue_lengths[i]]
+                dialogue_labels = cluster_ids_x.to(device)
                 
                 # print("Checkpoint 2 dialogue_labels", dialogue_labels)
                 
@@ -583,7 +583,7 @@ class ConLossPrototype(nn.Module):
                 prototype_mask = torch.LongTensor(1, label_range).to(device)
                 prototype_mask[0] = torch.LongTensor(range(label_range)).to(device)
                 
-                # print("Checkpoint 3 prototype_mask", prototype_mask)
+                # print("Checkpoint 3 prototype_mask", prototype_mask.size())
                 mask = torch.eq(dialogue_labels, prototype_mask).float().to(device)
                 
                 contrast_feature = prototypes
@@ -595,13 +595,16 @@ class ConLossPrototype(nn.Module):
                     self.temperature)
                 # for numerical stability
                 
-                # print("Checkpoint 6 anchor_dot_contrast", anchor_dot_contrast)
+                # print("Checkpoint 6 anchor_dot_contrast", anchor_dot_contrast.size())
                 
                 logits_max, _ = torch.max(anchor_dot_contrast, dim=1, keepdim=True)
                 logits = anchor_dot_contrast - logits_max.detach()
                 exp_logits = torch.exp(logits)
                 log_prob = logits - torch.log(exp_logits.sum(1, keepdim=True))
+                
                 mean_log_prob_pos = (mask * log_prob).sum(1) / mask.sum(1)
+                
+                # print("Checkpoint 7 mask, log_prob, anchor_dot_contrast", mask.size(), log_prob.size(), anchor_dot_contrast.size())
 
                 # loss
                 loss = - (self.temperature / self.base_temperature) * mean_log_prob_pos
@@ -625,3 +628,4 @@ class ConLossPrototype(nn.Module):
             print("Prototype result mean", result.mean())
 
         return result.mean()
+        
