@@ -12,6 +12,7 @@ from sklearn.cluster import KMeans
 from scipy.optimize import linear_sum_assignment
 
 import utils
+import kmeans_pytorch
 
 class SupConLossNCE(nn.Module):
     """Supervised Contrastive Learning: https://arxiv.org/pdf/2004.11362.pdf.
@@ -535,5 +536,92 @@ class TripletLoss(nn.Module):
         if self.print_detail:
             print("NCE result", result)
             print("NCE result mean", result.mean())
+
+        return result.mean()
+
+class ConLossPrototype(nn.Module):
+    """Supervised Contrastive Learning: https://arxiv.org/pdf/2004.11362.pdf.
+    It also supports the unsupervised contrastive loss in SimCLR"""
+    def __init__(self, temperature=0.07, contrast_mode='all',
+                 base_temperature=0.07, print_detail=False):
+        super(ConLossPrototype, self).__init__()
+        self.temperature = temperature
+        self.contrast_mode = contrast_mode
+        self.base_temperature = base_temperature
+        self.print_detail=print_detail
+
+    def forward(self, features, dialogue_lengths, labels=None, mask=None):
+        device = (torch.device('cuda')
+                  if torch.cuda.is_available()
+                  else torch.device('cpu'))
+        result = torch.zeros(features.shape[0], requires_grad=True).to(device)
+
+        for i, dialogue in enumerate(features):
+            for m in range(1, min(dialogue_lengths[i] - 1, constant.state_num) + 1):
+                # Discard padded utterances  
+                dialogue = dialogue[:dialogue_lengths[i], :]
+                # print("Checkpoint 1 dialgoue", dialgoue)
+
+                prototypes = torch.Tensor(m, features.shape[2]).to(device)
+                if m > 1:
+                    cluster_ids_x, cluster_centers = kmeans_pytorch.kmeans(X=dialogue, num_clusters=m, distance='euclidean', device=device, tqdm_flag=False)
+                else:
+                    cluster_ids_x = torch.zeros(dialogue.size(0))
+                    cluster_centers = dialogue.mean(dim=0, keepdim=True)
+                prototypes = cluster_centers.to(device)
+                
+                dialogue_labels = labels[i, :dialogue_lengths[i]]
+                
+                # print("Checkpoint 2 dialogue_labels", dialogue_labels)
+                
+                label_range = int(cluster_ids_x.max().item()) + 1
+                
+                # print("Checkpoint 3 largest_label", label_range)
+
+                dialogue_labels = dialogue_labels.contiguous().view(-1, 1)
+                assert dialogue_labels.shape[0] == dialogue.shape[0]
+                prototype_mask = torch.LongTensor(1, label_range).to(device)
+                prototype_mask[0] = torch.LongTensor(range(label_range)).to(device)
+                
+                # print("Checkpoint 3 prototype_mask", prototype_mask)
+                mask = torch.eq(dialogue_labels, prototype_mask).float().to(device)
+                
+                contrast_feature = prototypes
+                anchor_feature = dialogue
+
+                # compute logits
+                anchor_dot_contrast = torch.div(
+                    torch.matmul(anchor_feature, contrast_feature.T),
+                    self.temperature)
+                # for numerical stability
+                
+                # print("Checkpoint 6 anchor_dot_contrast", anchor_dot_contrast)
+                
+                logits_max, _ = torch.max(anchor_dot_contrast, dim=1, keepdim=True)
+                logits = anchor_dot_contrast - logits_max.detach()
+                exp_logits = torch.exp(logits)
+                log_prob = logits - torch.log(exp_logits.sum(1, keepdim=True))
+                mean_log_prob_pos = (mask * log_prob).sum(1) / mask.sum(1)
+
+                # loss
+                loss = - (self.temperature / self.base_temperature) * mean_log_prob_pos
+                
+                if torch.any(loss.isnan()):
+                    print("Prototype containing nan", loss)
+                    print("Corresponding prototype dialogue containing nan", dialogue)
+                    # assert ~torch.any(loss.isnan())
+                    
+                    loss = loss[~loss.isnan()]
+                
+                loss = loss.view(1, dialogue_lengths[i]).mean()
+
+                result[i] = result[i] + loss
+            result[i] = result[i] / constant.state_num
+
+        result = result[~result.isnan()]
+        
+        if self.print_detail:
+            print("Prototype result", result)
+            print("Prototype result mean", result.mean())
 
         return result.mean()

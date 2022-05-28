@@ -25,12 +25,13 @@ class SupervisedTrainer(object):
         self.logger = logger
         self.current_time = current_time
         self.loss_func = loss(reduction='batchmean')
-        self.SupConLossNCE = criterion.SupConLossNCE(temperature=constant.temperature, base_temperature=constant.base_temperature, print_detail=args.print_detail)
-        self.SupConLossPrototype = criterion.SupConLossPrototype(temperature=constant.temperature, base_temperature=constant.base_temperature, print_detail=args.print_detail)
+        # self.SupConLossNCE = criterion.SupConLossNCE(temperature=constant.temperature, base_temperature=constant.base_temperature, print_detail=args.print_detail)
 
         if self.args.train_mode == 'supervised':
+            self.SupConLossPrototype = criterion.SupConLossPrototype(temperature=constant.temperature, base_temperature=constant.base_temperature, print_detail=args.print_detail)
             self.PrototypeKmeansDivergence = criterion.PrototypeKmeansDivergence(print_detail=args.print_detail, Kmeans_metric=args.Kmeans_metric)
-        # elif self.args.train_mode == 'unsupervised':
+        elif self.args.train_mode == 'unsupervised':
+            self.ConLossPrototype = criterion.ConLossPrototype(temperature=constant.temperature, base_temperature=constant.base_temperature, print_detail=args.print_detail)
         self.Triplet = criterion.TripletLoss(temperature=constant.temperature, base_temperature=constant.base_temperature, print_detail=args.print_detail)
 
         if optimizer == None:
@@ -113,11 +114,11 @@ class SupervisedTrainer(object):
 
                 loss_1 = self.Triplet(attentive_repre, conversation_length, padded_labels, pos_mask, sample_mask)
 
-                padded_labels, cluster_numbers = self.generate_label(attentive_repre, conversation_length, padded_labels.size())
-                loss_2 = self.SupConLossPrototype(attentive_repre, conversation_length, padded_labels)
-                loss_3 = -torch.mean(torch.log(k_prob[range(k_prob.size(0)), cluster_numbers-1]))
+                # padded_labels, cluster_numbers = self.generate_label(attentive_repre, conversation_length, padded_labels.size())
+                loss_2 = self.ConLossPrototype(attentive_repre, conversation_length, padded_labels)
+                # loss_3 = -torch.mean(torch.log(k_prob[range(k_prob.size(0)), cluster_numbers-1]))
                 # NCE_weightage = (constant.NCE_weightage / (constant.NCE_weightage + constant.Prototype_weightage))
-                loss = constant.NCE_weightage * loss_1 + constant.Prototype_weightage * loss_2 + (1 - constant.NCE_weightage - constant.Prototype_weightage) * loss_3
+                loss = constant.NCE_weightage * loss_1 + (1 - constant.NCE_weightage) * loss_2
 
                 self.optimizer.zero_grad()
                 loss.backward()

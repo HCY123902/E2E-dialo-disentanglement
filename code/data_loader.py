@@ -51,9 +51,9 @@ class TrainDataLoader(object):
                     pos_pool = np.where(dialgoue_labels == label)[0]
                     # scalar
                     if self.train_mode == 'unsupervised':
-                        pos_sample = np.random.choice(pos_pool, 1)[0] + start
+                        pos_sample = pos_pool + start
                         
-                        neg_sample = neg_pool[np.random.choice(len(neg_pool), batch_size, replace=False)]
+                        neg_sample = neg_pool[np.random.choice(len(neg_pool), min(50, len(neg_pool)), replace=False)]
                         # [conversation_length, num_samples]
                         neg_sample = neg_sample[:, 0] * max_conversation_length + neg_sample[:, 1]
                     else:
@@ -63,9 +63,9 @@ class TrainDataLoader(object):
                     dialogue_pos_samples.append(pos_sample)
                     dialogue_neg_samples.append(neg_sample)
                     
-                if self.train_mode == 'unsupervised':
-                    dialogue_pos_samples = np.array(dialogue_pos_samples)
-                    dialogue_neg_samples = np.array(dialogue_neg_samples)
+                # if self.train_mode == 'unsupervised':
+                #     dialogue_pos_samples = np.array(dialogue_pos_samples)
+                #     dialogue_neg_samples = np.array(dialogue_neg_samples)
                 # print(dialogue_neg_samples.shape)
                 batch_pos_samples.append(dialogue_pos_samples)
                 batch_neg_samples.append(dialogue_neg_samples)
@@ -189,11 +189,12 @@ class TrainDataLoader(object):
             # start = i * max_conversation_length
             # pos_sample: [batch_size, conversation_length] -> pos_sample[i]: conversation_length -> [conversation_length, 1]
             # dialogue_pos_samples = (torch.LongTensor(pos_sample[i]).to(self.device).unsqueeze(0)).T
-            if self.train_mode == 'unsupervised':
-                dialogue_pos_samples = (torch.LongTensor(pos_sample[i]).to(self.device))
-                pos_masks[i].scatter_(dim=1, index=dialogue_pos_samples, value=1.0)
+            
+            # if self.train_mode == 'unsupervised':
+            #     dialogue_pos_samples = (torch.LongTensor(pos_sample[i]).to(self.device))
+            #     pos_masks[i].scatter_(dim=1, index=dialogue_pos_samples, value=1.0)
 
-                sample_masks[i].scatter_(dim=1, index=dialogue_pos_samples, value=1.0)
+            #     sample_masks[i].scatter_(dim=1, index=dialogue_pos_samples, value=1.0)
 
                 # neg_samples: [batch_size, conversation_length, num_samples, 2] -> [conversation_length, num_samples]
                 # print("neg_sample", len(neg_sample[i]), len(neg_sample[i][0]))
@@ -207,9 +208,9 @@ class TrainDataLoader(object):
                 # print("max_conversation_length", max_conversation_length)
                 # print("neg_sample_position", neg_sample_position.shape)
                 # print("neg_sample", neg_sample[i].shape)
-                dialogue_neg_samples = torch.LongTensor(neg_sample[i]).to(self.device)
-                sample_masks[i].scatter_(dim=1, index=dialogue_neg_samples, value=1.0)
-            else:
+            #     dialogue_neg_samples = torch.LongTensor(neg_sample[i]).to(self.device)
+            #     sample_masks[i].scatter_(dim=1, index=dialogue_neg_samples, value=1.0)
+            # else:
                 # Iterate for each utterance
                 for j, s in enumerate(pos_sample[i]):
                     pos_masks[i, j, s] = 1.0
