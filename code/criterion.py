@@ -24,6 +24,9 @@ class SupConLossNCE(nn.Module):
         self.contrast_mode = contrast_mode
         self.base_temperature = base_temperature
         self.print_detail=print_detail
+        self.device = (torch.device('cuda')
+                if torch.cuda.is_available()
+                else torch.device('cpu'))
 
     def forward(self, features, dialogue_lengths, labels=None, mask=None):
         """Compute loss for model. If both `labels` and `mask` are None,
@@ -38,10 +41,7 @@ class SupConLossNCE(nn.Module):
         Returns:
             A loss scalar.
         """
-        device = (torch.device('cuda')
-                  if torch.cuda.is_available()
-                  else torch.device('cpu'))
-        result = torch.zeros(features.shape[0], requires_grad=True).to(device)
+        result = torch.zeros(features.shape[0], requires_grad=True).to(self.device)
 
         for i, dialogue in enumerate(features):
             # Discard padded utterances
@@ -54,7 +54,7 @@ class SupConLossNCE(nn.Module):
             assert dialogue_labels.shape[0] == dialogue.shape[0]
             # if dialogue_labels.shape[0] != batch_size:
             #     raise ValueError('Num of labels does not match num of features')
-            mask = torch.eq(dialogue_labels, dialogue_labels.T).float().to(device)
+            mask = torch.eq(dialogue_labels, dialogue_labels.T).float().to(self.device)
 
             contrast_feature = dialogue
             anchor_feature = dialogue
@@ -82,7 +82,7 @@ class SupConLossNCE(nn.Module):
             logits_mask = torch.scatter(
                 torch.ones_like(mask),
                 1,
-                torch.arange(dialogue_lengths[i]).view(-1, 1).to(device),
+                torch.arange(dialogue_lengths[i]).view(-1, 1).to(self.device),
                 0
             )
             mask = mask * logits_mask
@@ -217,6 +217,9 @@ class SupConLossPrototype(nn.Module):
         self.contrast_mode = contrast_mode
         self.base_temperature = base_temperature
         self.print_detail=print_detail
+        self.device = (torch.device('cuda')
+                if torch.cuda.is_available()
+                else torch.device('cpu'))
 
     def forward(self, features, dialogue_lengths, labels=None, mask=None):
         """Compute loss for model. If both `labels` and `mask` are None,
@@ -231,10 +234,8 @@ class SupConLossPrototype(nn.Module):
         Returns:
             A loss scalar.
         """
-        device = (torch.device('cuda')
-                  if torch.cuda.is_available()
-                  else torch.device('cpu'))
-        result = torch.zeros(features.shape[0], requires_grad=True).to(device)
+
+        result = torch.zeros(features.shape[0], requires_grad=True).to(self.device)
 
         for i, dialogue in enumerate(features):
             # Discard padded utterances  
@@ -254,17 +255,17 @@ class SupConLossPrototype(nn.Module):
             # if dialogue_labels.shape[0] != batch_size:
             #     raise ValueError('Num of labels does not match num of features')
 
-            prototype_mask = torch.LongTensor(1, label_range).to(device)
-            prototype_mask[0] = torch.LongTensor(range(label_range)).to(device)
+            prototype_mask = torch.LongTensor(1, label_range).to(self.device)
+            prototype_mask[0] = torch.LongTensor(range(label_range)).to(self.device)
             
             # print("Checkpoint 3 prototype_mask", prototype_mask)
 
-            mask = torch.eq(dialogue_labels, prototype_mask).float().to(device)
+            mask = torch.eq(dialogue_labels, prototype_mask).float().to(self.device)
             
             # print("Checkpoint 4 mask", mask)
 
             # state_number, hidden size
-            prototypes = torch.Tensor(label_range, features.shape[2]).to(device)
+            prototypes = torch.Tensor(label_range, features.shape[2]).to(self.device)
             for k in range(label_range):
                 
                 dialogue_label_mask = (dialogue_labels[:, 0] == k).nonzero(as_tuple=True)[0]
@@ -352,12 +353,13 @@ class PrototypeKmeansDivergence(nn.Module):
         super(PrototypeKmeansDivergence, self).__init__()
         self.print_detail=print_detail
         self.Kmeans_metric = Kmeans_metric
+        self.device = (torch.device('cuda')
+                if torch.cuda.is_available()
+                else torch.device('cpu'))
 
     def forward(self, features, dialogue_lengths, labels=None, mask=None, k_prob=None):
-        device = (torch.device('cuda')
-                  if torch.cuda.is_available()
-                  else torch.device('cpu'))
-        result = torch.zeros(features.shape[0]).to(device)
+        
+        result = torch.zeros(features.shape[0]).to(self.device)
 
         for i, dialogue in enumerate(features):
             # Discard padded utterances  
@@ -377,17 +379,17 @@ class PrototypeKmeansDivergence(nn.Module):
             # if dialogue_labels.shape[0] != batch_size:
             #     raise ValueError('Num of labels does not match num of features')
 
-            prototype_mask = torch.LongTensor(1, label_range).to(device)
-            prototype_mask[0] = torch.LongTensor(range(label_range)).to(device)
+            prototype_mask = torch.LongTensor(1, label_range).to(self.device)
+            prototype_mask[0] = torch.LongTensor(range(label_range)).to(self.device)
             
             # print("Checkpoint 3 prototype_mask", prototype_mask)
 
-            mask = torch.eq(dialogue_labels, prototype_mask).float().to(device)
+            mask = torch.eq(dialogue_labels, prototype_mask).float().to(self.device)
             
             # print("Checkpoint 4 mask", mask)
 
             # state_number, hidden size
-            prototypes = torch.Tensor(label_range, features.shape[2]).to(device)
+            prototypes = torch.Tensor(label_range, features.shape[2]).to(self.device)
             for k in range(label_range):
                 
                 dialogue_label_mask = (dialogue_labels[:, 0] == k).nonzero(as_tuple=True)[0]
@@ -415,10 +417,10 @@ class PrototypeKmeansDivergence(nn.Module):
             row_ind, col_ind = linear_sum_assignment(squared_distance)
             cnt = len(row_ind)
 
-            loss = torch.tensor(0).to(device)
+            loss = torch.tensor(0).to(self.device)
 
             for (r, c) in zip(row_ind, col_ind):
-              loss = loss + torch.dist(prototypes[r], torch.tensor(k_means.cluster_centers_[c]).to(device)).to(device)
+                loss = loss + torch.dist(prototypes[r], torch.tensor(k_means.cluster_centers_[c]).to(self.device)).to(self.device)
             # Average distance between prototype and matched cluster center
             loss = loss / cnt
 
@@ -447,12 +449,12 @@ class TripletLoss(nn.Module):
         self.base_temperature = base_temperature
         self.print_detail=print_detail
         self.log_softmax = torch.nn.LogSoftmax(dim=0)
-
-    def forward(self, features, dialogue_lengths, labels, pos_mask, sample_mask):
-        device = (torch.device('cuda')
+        self.device = (torch.device('cuda')
                   if torch.cuda.is_available()
                   else torch.device('cpu'))
-        result = torch.zeros(features.shape[0], requires_grad=True).to(device)
+
+    def forward(self, features, dialogue_lengths, labels, pos_mask, sample_mask):
+        result = torch.zeros(features.shape[0], requires_grad=True).to(self.device)
 
         loss = None
 
@@ -549,12 +551,12 @@ class ConLossPrototype(nn.Module):
         self.contrast_mode = contrast_mode
         self.base_temperature = base_temperature
         self.print_detail=print_detail
-
-    def forward(self, features, dialogue_lengths, labels=None, mask=None):
-        device = (torch.device('cuda')
+        self.device = (torch.device('cuda')
                   if torch.cuda.is_available()
                   else torch.device('cpu'))
-        result = torch.zeros(features.shape[0], requires_grad=True).to(device)
+
+    def forward(self, features, dialogue_lengths, labels=None, mask=None):
+        result = torch.zeros(features.shape[0], requires_grad=True).to(self.device)
 
         for i, dialogue in enumerate(features):
             for m in range(1, min(dialogue_lengths[i] - 1, constant.state_num) + 1):
@@ -562,29 +564,30 @@ class ConLossPrototype(nn.Module):
                 dialogue = dialogue[:dialogue_lengths[i], :]
                 # print("Checkpoint 1 dialgoue", dialgoue)
 
-                prototypes = torch.Tensor(m, features.shape[2]).to(device)
+                prototypes = torch.Tensor(m, features.shape[2]).to(self.device)
                 if m > 1:
-                    cluster_ids_x, cluster_centers = kmeans_pytorch.kmeans(X=dialogue, num_clusters=m, distance='euclidean', device=device, tqdm_flag=False)
+                    cluster_ids_x, cluster_centers = kmeans_pytorch.kmeans(X=dialogue, num_clusters=m, distance='euclidean', device=self.device, tqdm_flag=False)
                 else:
                     cluster_ids_x = torch.zeros(dialogue.size(0))
                     cluster_centers = dialogue.mean(dim=0, keepdim=True)
-                prototypes = cluster_centers.to(device)
+                prototypes = cluster_centers.to(self.device)
                 
-                dialogue_labels = cluster_ids_x.to(device)
+                dialogue_labels = cluster_ids_x.to(self.device)
                 
                 # print("Checkpoint 2 dialogue_labels", dialogue_labels)
                 
-                label_range = int(cluster_ids_x.max().item()) + 1
+                # label_range = int(cluster_ids_x.max().item()) + 1
+                label_range = int(prototypes.size(0))
                 
                 # print("Checkpoint 3 largest_label", label_range)
 
                 dialogue_labels = dialogue_labels.contiguous().view(-1, 1)
                 assert dialogue_labels.shape[0] == dialogue.shape[0]
-                prototype_mask = torch.LongTensor(1, label_range).to(device)
-                prototype_mask[0] = torch.LongTensor(range(label_range)).to(device)
+                prototype_mask = torch.LongTensor(1, label_range).to(self.device)
+                prototype_mask[0] = torch.LongTensor(range(label_range)).to(self.device)
                 
                 # print("Checkpoint 3 prototype_mask", prototype_mask.size())
-                mask = torch.eq(dialogue_labels, prototype_mask).float().to(device)
+                mask = torch.eq(dialogue_labels, prototype_mask).float().to(self.device)
                 
                 contrast_feature = prototypes
                 anchor_feature = dialogue

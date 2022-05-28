@@ -26,6 +26,9 @@ class SupervisedTrainer(object):
         self.current_time = current_time
         self.loss_func = loss(reduction='batchmean')
         # self.SupConLossNCE = criterion.SupConLossNCE(temperature=constant.temperature, base_temperature=constant.base_temperature, print_detail=args.print_detail)
+        self.device = (torch.device('cuda')
+                if torch.cuda.is_available()
+                else torch.device('cpu'))
 
         if self.args.train_mode == 'supervised':
             self.SupConLossPrototype = criterion.SupConLossPrototype(temperature=constant.temperature, base_temperature=constant.base_temperature, print_detail=args.print_detail)
@@ -286,7 +289,10 @@ class SupervisedTrainer(object):
                     
                     # cluster_number = max(int((conversation_length_list[i] / float(constant.dialogue_max_length)) * (constant.state_num)), 1)
                     # cluster_number = utils.calculateK(dialogue_embedding.detach().numpy(), conversation_length_list[i], self.args.Kmeans_metric)
-                    k_val =  (torch.argmax(k_prob[i, :conversation_length_list[i]]) + 1).item()
+                    if self.args.train_mode == 'supervised':
+                        k_val =  (torch.argmax(k_prob[i, :conversation_length_list[i]]) + 1).item()
+                    elif self.args.train_mode == 'unsupervised':
+                        k_val, _ = utils.calculateK(dialogue_embedding, conversation_length_list[i], self.args.Kmeans_metric, self.device)
                     gold_k = (torch.max(padded_labels[i]) + 1).item()
                     if gold_k == k_val:
                         correct_k = correct_k + 1
@@ -374,7 +380,10 @@ class SupervisedTrainer(object):
                     dialogue_embedding = attentive_repre[i, :conversation_length_list[i], :].cpu()
                     # cluster_number = max(int((conversation_length_list[i] / float(constant.dialogue_max_length)) * (constant.state_num)), 1)
                     # cluster_number = utils.calculateK(dialogue_embedding.detach().numpy(), conversation_length_list[i], self.args.Kmeans_metric)
-                    k_val =  (torch.argmax(k_prob[i, :conversation_length_list[i]]) + 1).item()
+                    if self.args.train_mode == 'supervised':
+                        k_val =  (torch.argmax(k_prob[i, :conversation_length_list[i]]) + 1).item()
+                    elif self.args.train_mode == 'unsupervised':
+                        k_val, _ = utils.calculateK(dialogue_embedding, conversation_length_list[i], self.args.Kmeans_metric, self.device)
                     gold_k = (torch.max(padded_labels[i]) + 1).item()
                     if gold_k == k_val:
                         correct_k = correct_k + 1
@@ -412,7 +421,7 @@ class SupervisedTrainer(object):
         return torch.cat((attentive_repre, padded_speakers.unsqueeze(-1)), dim=-1)
 
     def generate_label(self, attentive_repre, conversation_length_list, shape):
-        device = torch.device('cuda:0') if torch.cuda.is_available() else torch.device('cpu')
+        device = self.device
         # if not torch.cuda.is_available():
         generated_labels = torch.LongTensor(shape).fill_(-1)  
         cluster_numbers = []
