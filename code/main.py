@@ -120,7 +120,7 @@ def test(args):
     current_time = re.findall('.*model_(.+?)/.*', args.model_path)[0]
     step_cnt = re.findall('.step_(.+?)\.pkl', args.model_path)[0]
 
-    test_dataloader = TrainDataLoader(test_utterances, test_labels, word_dict, test_speakers, name='test', batch_size=4, train_mode = args.train_mode)
+    test_dataloader = TrainDataLoader(test_utterances, test_labels, word_dict, test_speakers, name='test', batch_size=16, train_mode = args.train_mode)
     
     ensemble_model = EnsembleModel(word_dict, word_emb=word_emb, bidirectional=True)
     if torch.cuda.is_available():
