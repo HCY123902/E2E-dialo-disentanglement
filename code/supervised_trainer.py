@@ -371,7 +371,7 @@ class SupervisedTrainer(object):
                     # cluster_result = utils.run_kmeans(dialogue_embedding, args)
                     # predicted_labels.append(cluster_result["im2cluster"].tolist())
 
-                    dialogue_embedding = attentive_repre[i, :conversation_length_list[i], :].squeeze(0).cpu()
+                    dialogue_embedding = attentive_repre[i, :conversation_length_list[i], :].cpu()
                     # cluster_number = max(int((conversation_length_list[i] / float(constant.dialogue_max_length)) * (constant.state_num)), 1)
                     # cluster_number = utils.calculateK(dialogue_embedding.detach().numpy(), conversation_length_list[i], self.args.Kmeans_metric)
                     k_val =  (torch.argmax(k_prob[i, :conversation_length_list[i]]) + 1).item()

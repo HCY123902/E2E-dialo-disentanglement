@@ -108,6 +108,9 @@ def test(args):
         test_utterances, test_labels, word_dict, test_speakers = read_data(load_var=args.load_var, \
                 input_=os.path.join(constant.data_path, "entangled_{}.json".format(args.mode)), mode='test')
     
+    word_emb = build_embedding_matrix(word_dict, glove_loc=args.glove_loc, \
+                    emb_loc=os.path.join(constant.save_input_path, "word_emb.pk"), load_emb=False)
+    
     if args.save_input:
         utils.save_or_read_input(os.path.join(constant.save_input_path, "{}_utterances.pk".format(args.mode)), \
                                     rw='w', input_obj=test_utterances)
@@ -119,7 +122,7 @@ def test(args):
 
     test_dataloader = TrainDataLoader(test_utterances, test_labels, word_dict, test_speakers, name='test', batch_size=4, train_mode = args.train_mode)
     
-    ensemble_model = EnsembleModel(word_dict, word_emb=None, bidirectional=False)
+    ensemble_model = EnsembleModel(word_dict, word_emb=word_emb, bidirectional=True)
     if torch.cuda.is_available():
         ensemble_model.cuda()
 
