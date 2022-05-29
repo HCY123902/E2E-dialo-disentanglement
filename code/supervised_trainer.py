@@ -285,7 +285,7 @@ class SupervisedTrainer(object):
                 # Added
                 for i in range(attentive_repre.shape[0]):
                     # dialogue_embedding = attentive_repre[i, :conversation_length_list[i], :].squeeze(0).cpu()
-                    dialogue_embedding = attentive_repre[i, :conversation_length_list[i], :].cpu()
+                    dialogue_embedding = attentive_repre[i, :conversation_length_list[i], :]
                     
                     # cluster_number = max(int((conversation_length_list[i] / float(constant.dialogue_max_length)) * (constant.state_num)), 1)
                     # cluster_number = utils.calculateK(dialogue_embedding.detach().numpy(), conversation_length_list[i], self.args.Kmeans_metric)
@@ -300,7 +300,7 @@ class SupervisedTrainer(object):
 
                     print("cluster_number", k_val)
                     
-                    cluster_label = KMeans(n_clusters=k_val, random_state=0).fit(dialogue_embedding.detach().numpy()).labels_
+                    cluster_label = KMeans(n_clusters=k_val, random_state=0).fit(dialogue_embedding.cpu().detach().numpy()).labels_
                     
                     print("cluster_label before ordering", cluster_label)
                     
@@ -377,7 +377,7 @@ class SupervisedTrainer(object):
                     # cluster_result = utils.run_kmeans(dialogue_embedding, args)
                     # predicted_labels.append(cluster_result["im2cluster"].tolist())
 
-                    dialogue_embedding = attentive_repre[i, :conversation_length_list[i], :].cpu()
+                    dialogue_embedding = attentive_repre[i, :conversation_length_list[i], :]
                     # cluster_number = max(int((conversation_length_list[i] / float(constant.dialogue_max_length)) * (constant.state_num)), 1)
                     # cluster_number = utils.calculateK(dialogue_embedding.detach().numpy(), conversation_length_list[i], self.args.Kmeans_metric)
                     if self.args.train_mode == 'supervised':
@@ -388,7 +388,7 @@ class SupervisedTrainer(object):
                     if gold_k == k_val:
                         correct_k = correct_k + 1
                     count_k = count_k + 1
-                    cluster_label = KMeans(n_clusters=k_val, random_state=0).fit(dialogue_embedding.detach().numpy()).labels_
+                    cluster_label = KMeans(n_clusters=k_val, random_state=0).fit(dialogue_embedding.cpu().detach().numpy()).labels_
                     cluster_label = utils.order_cluster_labels(cluster_label.tolist())
                     predicted_labels.append(cluster_label)
                 
