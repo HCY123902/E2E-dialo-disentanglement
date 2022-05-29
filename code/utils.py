@@ -514,7 +514,8 @@ def calculateK(dialogue_embedding, dialogue_length, method, device):
     elif method == 'elbow':
         scores = []
         closest_centers = torch.mean(dialogue_embedding, dim=0).repeat(dialogue_length, 1).cpu()
-        inertia = torch.linalg.norm(dialogue_embedding.cpu()-closest_centers, dim=1, ord=2)
+        # inertia = torch.linalg.norm(dialogue_embedding.cpu()-closest_centers, dim=1, ord=2)
+        inertia = (torch.square(dialogue_embedding-closest_centers.to(device))).sum().item()
         scores.append(np.array([1, inertia, np.zeors(dialogue_length, dtype=int)]))
         for K in range(2, min(dialogue_length, constant.state_num) + 1):
             # kmeans = KMeans(n_clusters=K, random_state=0)
@@ -524,7 +525,8 @@ def calculateK(dialogue_embedding, dialogue_length, method, device):
             labels = cluster_ids_x.cpu().detach().numpy()
 
             closest_centers = cluster_centers[cluster_ids_x]
-            inertia = torch.linalg.norm(dialogue_embedding.cpu()-closest_centers, dim=1, ord=2)
+            # inertia = torch.linalg.norm(dialogue_embedding.cpu()-closest_centers, dim=1, ord=2)
+            inertia = (torch.square(dialogue_embedding-closest_centers.to(device))).sum().item()
 
             scores.append(np.array([K, inertia, labels]))
 
