@@ -53,7 +53,7 @@ class TrainDataLoader(object):
                     if self.train_mode == 'unsupervised':
                         pos_sample = pos_pool + start
                         
-                        neg_sample = neg_pool[np.random.choice(len(neg_pool), min(50, len(neg_pool)), replace=False)]
+                        neg_sample = neg_pool[np.random.choice(len(neg_pool), min(100, len(neg_pool)), replace=False)]
                         # [conversation_length, num_samples]
                         neg_sample = neg_sample[:, 0] * max_conversation_length + neg_sample[:, 1]
                     else:
