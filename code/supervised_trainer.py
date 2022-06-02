@@ -290,7 +290,8 @@ class SupervisedTrainer(object):
                     # cluster_number = max(int((conversation_length_list[i] / float(constant.dialogue_max_length)) * (constant.state_num)), 1)
                     # cluster_number = utils.calculateK(dialogue_embedding.detach().numpy(), conversation_length_list[i], self.args.Kmeans_metric)
                     if self.args.train_mode == 'supervised':
-                        k_val =  (torch.argmax(k_prob[i, :conversation_length_list[i]]) + 1).item()
+                        # k_val =  (torch.argmax(k_prob[i, :conversation_length_list[i]]) + 1).item()
+                        k_val = (torch.max(padded_labels[i]) + 1).item()
                     elif self.args.train_mode == 'unsupervised':
                         k_val, _ = utils.calculateK(dialogue_embedding, conversation_length_list[i], self.args.Kmeans_metric, self.device)
                     gold_k = (torch.max(padded_labels[i]) + 1).item()
@@ -381,7 +382,8 @@ class SupervisedTrainer(object):
                     # cluster_number = max(int((conversation_length_list[i] / float(constant.dialogue_max_length)) * (constant.state_num)), 1)
                     # cluster_number = utils.calculateK(dialogue_embedding.detach().numpy(), conversation_length_list[i], self.args.Kmeans_metric)
                     if self.args.train_mode == 'supervised':
-                        k_val =  (torch.argmax(k_prob[i, :conversation_length_list[i]]) + 1).item()
+                        # k_val =  (torch.argmax(k_prob[i, :conversation_length_list[i]]) + 1).item()
+                        k_val = (torch.max(padded_labels[i]) + 1).item()
                     elif self.args.train_mode == 'unsupervised':
                         k_val, _ = utils.calculateK(dialogue_embedding, conversation_length_list[i], self.args.Kmeans_metric, self.device)
                     gold_k = (torch.max(padded_labels[i]) + 1).item()
