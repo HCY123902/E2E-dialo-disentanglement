@@ -107,7 +107,7 @@ class TrainDataLoader(object):
         padded_labels = self.convert_to_tensors_label(labels, batch_size, conversation_lengths)
 
         # Added for speaker
-        padded_speakers = self.convert_to_tensors_label(speakers, batch_size, conversation_lengths)
+        padded_speakers = self.convert_to_tensors_speaker(speakers, batch_size, conversation_lengths)
 
         padded_speakers = padded_speakers.to(self.device, dtype=torch.float)
 
@@ -177,6 +177,20 @@ class TrainDataLoader(object):
         new_batch = torch.LongTensor(batch_size, max_length).fill_(-1)
         for i in range(len(batch)):
             new_batch[i, :conversation_lengths[i]] = torch.LongTensor(batch[i])
+
+        return new_batch.to(self.device)
+
+    def convert_to_tensors_speaker(self, batch, batch_size, conversation_lengths):
+        max_length = max(conversation_lengths)
+        # if not torch.cuda.is_available():
+        #     new_batch = torch.LongTensor(batch_size, max_length).fill_(-1)
+        #     for i in range(len(batch)):
+        #         new_batch[i, :conversation_lengths[i]] = torch.LongTensor(batch[i])
+        # else:
+        new_batch = torch.zeros(batch_size, max_length, constant.dialogue_max_length).float()
+        for i in range(len(batch)):
+            for j in range(max_length):
+                new_batch[i, j, batch[i, j]] = 1.0
 
         return new_batch.to(self.device)
 
