@@ -6,10 +6,15 @@ state_num = 6
 PAD_ID = 0
 UNK_ID = 1
 
+adopt_speaker = True
+
 epoch_num = 7
 inference_step = 1000
 embedding_size = 300
 hidden_size = 300
+
+attention_size = 300 if not adopt_speaker else 300 + dialogue_max_length
+
 batch_size = 16
 learning_rate = 5e-5
 total_noise_ratio = 0.2

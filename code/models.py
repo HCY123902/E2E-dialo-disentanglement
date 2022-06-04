@@ -52,6 +52,9 @@ class EnsembleModel(nn.Module):
         # return softmax_masked_scores
 
         batch_size = attentive_repre.size(0)
+
+        if constant.adopt_speaker:
+            conversation_repre = torch.cat((conversation_repre, padded_speakers), dim=-1)
     
         # k_logtis = self.k_predictor(torch.cat((self.pad_dialogue(attentive_repre).reshape(batch_size, -1), self.pad_speaker(padded_speakers)), dim=1))
         conversation_attention = self.conversation_attentive_encoder(batch_utterances, conversation_repre, shape)
@@ -180,8 +183,8 @@ class ConversationAttentiveEncoder(nn.Module):
     def __init__(self, dropout=0.):
         super(ConversationAttentiveEncoder, self).__init__()
         self.drop = nn.Dropout(dropout)
-        self.ws1 = nn.Linear(constant.hidden_size, constant.hidden_size, bias=False)
-        self.ws2 = nn.Linear(constant.hidden_size, 1, bias=False)
+        self.ws1 = nn.Linear(constant.attention_size, constant.attention_size, bias=False)
+        self.ws2 = nn.Linear(constant.attention_size, 1, bias=False)
         self.tanh = nn.Tanh()
         self.softmax = nn.Softmax(dim=1)
 

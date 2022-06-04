@@ -368,8 +368,8 @@ class SupervisedTrainer(object):
                 # attentive_repre, k_prob = self.ensemble_model.attentive_encoder(batch_utterances, utterance_repre, shape)
                 attentive_repre, k_prob = self.ensemble_model(batch)
 
-                if self.args.adopt_speaker:
-                    attentive_repre = self.add_speaker(attentive_repre, padded_speakers)
+                # if self.args.adopt_speaker:
+                #     attentive_repre = self.add_speaker(attentive_repre, padded_speakers)
 
                 # Added
                 for i in range(attentive_repre.shape[0]):
@@ -419,8 +419,6 @@ class SupervisedTrainer(object):
                         round(purity_score, 4), round(nmi_score, 4), round(ari_score, 4), round(shen_f_score, 4), round(accuracy_k, 4))
         print(log_msg)
 
-    def add_speaker(self, attentive_repre, padded_speakers):
-        return torch.cat((attentive_repre, padded_speakers.unsqueeze(-1)), dim=-1)
 
     def generate_label(self, attentive_repre, conversation_length_list, shape):
         device = self.device
