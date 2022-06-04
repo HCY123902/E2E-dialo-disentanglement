@@ -24,7 +24,7 @@ class EnsembleModel(nn.Module):
         # else:
         #     self.scores_calculator = ScoresCalculator(softmax_func=nn.LogSoftmax)
         self.k_predictor = torch.nn.Sequential(
-            torch.nn.Linear(constant.hidden_size + 2, 128),
+            torch.nn.Linear(constant.attention_size + 2, 128),
             torch.nn.ReLU(),
             torch.nn.Linear(128, constant.state_num)
         )
@@ -58,7 +58,8 @@ class EnsembleModel(nn.Module):
     
         # k_logtis = self.k_predictor(torch.cat((self.pad_dialogue(attentive_repre).reshape(batch_size, -1), self.pad_speaker(padded_speakers)), dim=1))
         conversation_attention = self.conversation_attentive_encoder(batch_utterances, conversation_repre, shape)
-        num_speakers = (torch.max(padded_speakers, dim=1, keepdim=True)[0] + 1).to(self.device, dtype=torch.float)
+        # num_speakers = (torch.max(padded_speakers, dim=1, keepdim=True)[0] + 1).to(self.device, dtype=torch.float)
+        num_speakers = torch.sum((torch.sum(padded_speakers, dim=1) != 0), dim=1, keepdim=True).to(self.device, dtype=torch.float)
         conversation_len = torch.tensor(conversation_lengths).unsqueeze(1).to(self.device, dtype=torch.float)
         k_logits = self.k_predictor(torch.cat((conversation_attention, num_speakers, conversation_len), dim=1))
         

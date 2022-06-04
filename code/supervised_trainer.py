@@ -90,8 +90,8 @@ class SupervisedTrainer(object):
             # [batch_size, max_conversation_length, 5]
             # print("attentive_repre", attentive_repre.shape)
 
-            if self.args.adopt_speaker:
-                attentive_repre = self.add_speaker(attentive_repre, padded_speakers)
+            # if self.args.adopt_speaker:
+            #     attentive_repre = self.add_speaker(attentive_repre, padded_speakers)
             
             # Added
             if torch.any(attentive_repre.isnan()):
@@ -279,8 +279,8 @@ class SupervisedTrainer(object):
                 # attentive_repre, k_prob = self.ensemble_model.attentive_encoder(batch_utterances, utterance_repre, shape)
                 attentive_repre, k_prob = self.ensemble_model(batch)
 
-                if self.args.adopt_speaker:
-                    attentive_repre = self.add_speaker(attentive_repre, padded_speakers)
+                # if self.args.adopt_speaker:
+                #     attentive_repre = self.add_speaker(attentive_repre, padded_speakers)
 
                 # Added
                 for i in range(attentive_repre.shape[0]):

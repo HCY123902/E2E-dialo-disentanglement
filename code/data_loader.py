@@ -189,8 +189,8 @@ class TrainDataLoader(object):
         # else:
         new_batch = torch.zeros(batch_size, max_length, constant.dialogue_max_length).float()
         for i in range(len(batch)):
-            for j in range(max_length):
-                new_batch[i, j, batch[i, j]] = 1.0
+            for j in range(conversation_lengths[i]):
+                new_batch[i, j, batch[i][j]] = 1.0
 
         return new_batch.to(self.device)
 

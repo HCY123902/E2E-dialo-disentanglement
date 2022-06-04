@@ -20,7 +20,7 @@ learning_rate = 5e-5
 total_noise_ratio = 0.2
 noise_ratio = 0.05
 
-exp_name = "run_24_entire_set_with_matching_lr_5e-5_epoch_7_mlp_unsupervised"
+exp_name = "run_28_entire_set_with_matching_lr_5e-5_epoch_7_mlp_supervised_k_label_adopt_speaker"
 
 save_input_path = "./input_saving/"
 log_path = "./log/{}/".format(exp_name)
