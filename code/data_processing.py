@@ -19,6 +19,8 @@ def extract_input_data(content, mode, train_mode='supervised'):
 
     # Added for speaker
     speakers = []
+    mentions = []
+
     for item in tqdm(content):
         utterance_list = []
         label_list = []
@@ -26,6 +28,7 @@ def extract_input_data(content, mode, train_mode='supervised'):
         # Added for speaker
         speaker_list = []
         speaker_map = {}
+        mention_list = []
 
         for one_uttr in item:
             uttr_content = one_uttr['utterance']
@@ -40,6 +43,12 @@ def extract_input_data(content, mode, train_mode='supervised'):
                 speaker_map[speaker] = len(speaker_map)
             speaker = speaker_map.get(speaker)
 
+            mention = np.zeros(constant.dialogue_max_length, dtype=int)
+            for s in speaker_map:
+                if s in uttr_content:
+                    mention[speaker_map[s]] = 1 
+            mention[speaker] = 1
+
             # Added for unsupervised training
             if train_mode == 'unsupervised':
                 label = speaker
@@ -47,12 +56,14 @@ def extract_input_data(content, mode, train_mode='supervised'):
             speaker_list.append(speaker)
             label_list.append(label)
             utterance_list.append(uttr_word_list)
+            mention_list.append(mention.tolist())
 
             # Added
             if mode == "train":
                 all_utterances.append(copy.deepcopy(utterance_list))
                 labels.append(copy.deepcopy(label_list))
                 speakers.append(copy.deepcopy(speaker_list))
+                mentions.append(copy.deepcopy(mention_list))
             
 #             if mode != "train" and (len(utterance_list) == 1 or len(utterance_list) == len(item) // 2 or (len(utterance_list) >= len(item) * 0.94 and len(utterance_list) < len(item))):
 #                 all_utterances.append(copy.deepcopy(utterance_list))
@@ -67,18 +78,20 @@ def extract_input_data(content, mode, train_mode='supervised'):
         # labels.append(label_list)
     
 #     if mode == "train":
-    zipped_list = [(a, l, s) for (a, l, s) in zip(all_utterances, labels, speakers)]
+    zipped_list = [(a, l, s, m) for (a, l, s, m) in zip(all_utterances, labels, speakers, mentions)]
 
     random.shuffle(zipped_list)
 
     all_utterances = [t[0] for t in zipped_list]
     labels = [t[1] for t in zipped_list]
     speakers = [t[2] for t in zipped_list]
+    mentions = [t[3] for t in zipped_list]
     
     # Added
     all_utterances = all_utterances[:len(all_utterances)//10]
     labels = labels[:len(all_utterances)]
     speakers = speakers[:len(all_utterances)]
+    mentions = mentions[:len(all_utterances)]
 
     return all_utterances, labels, speakers
 
@@ -108,10 +121,10 @@ def read_raw_data(datapath, mode='train', train_mode='supervised'):
         content = json.load(fin)
     print("{} {} data examples read.".format(len(content), mode))
 
-    all_utterances, labels, speakers = extract_input_data(content, mode, train_mode)
+    all_utterances, labels, speakers, mentions = extract_input_data(content, mode, train_mode)
     word_dict = build_word_dict(all_utterances)
     
-    return all_utterances, labels, word_dict, speakers
+    return all_utterances, labels, word_dict, speakers, mentions
 
 def read_data(load_var=False, input_=None, mode='train', train_mode='supervised'):
     if load_var:
@@ -120,12 +133,12 @@ def read_data(load_var=False, input_=None, mode='train', train_mode='supervised'
         word_dict = utils.save_or_read_input(os.path.join(constant.save_input_path, "word_dict.pk"))
     else:
         if mode == 'train':
-            all_utterances, labels, word_dict, speakers = read_raw_data(input_, mode, train_mode)
+            all_utterances, labels, word_dict, speakers, mentions = read_raw_data(input_, mode, train_mode)
         else:
-            all_utterances, labels, _, speakers = read_raw_data(input_, mode, train_mode)
+            all_utterances, labels, _, speakers, mentions = read_raw_data(input_, mode, train_mode)
             if mode == 'dev':
                 word_dict = None
             else:
                 word_dict = utils.save_or_read_input(os.path.join(constant.save_input_path, "word_dict.pk"))
-    return all_utterances, labels, word_dict, speakers
+    return all_utterances, labels, word_dict, speakers, mentions
 
