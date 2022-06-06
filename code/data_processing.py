@@ -93,7 +93,7 @@ def extract_input_data(content, mode, train_mode='supervised'):
     speakers = speakers[:len(all_utterances)]
     mentions = mentions[:len(all_utterances)]
 
-    return all_utterances, labels, speakers
+    return all_utterances, labels, speakers, mentions
 
 def build_word_dict(all_utterances):
     print("Building word dictionary...")
