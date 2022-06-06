@@ -73,6 +73,7 @@ def extract_input_data(content, mode, train_mode='supervised'):
                 all_utterances.append(copy.deepcopy(utterance_list))
                 labels.append(copy.deepcopy(label_list))
                 speakers.append(copy.deepcopy(speaker_list))
+                mentions.append(copy.deepcopy(mention_list))
 
         # all_utterances.append(utterance_list)
         # labels.append(label_list)
