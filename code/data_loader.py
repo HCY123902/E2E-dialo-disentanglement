@@ -89,7 +89,7 @@ class TrainDataLoader(object):
 
         # Added for speaker
         # speakers = self.speakers_batch[key]
-        mentions = self.speakers_batch[key]
+        mentions = self.mentions_batch[key]
 
         # new_utterance_num_numpy, label_for_loss, new_labels, new_utterance_sequence_length, session_transpose_matrix, \
         #         state_transition_matrix, session_sequence_length, max_conversation_length, loss_mask \
