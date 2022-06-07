@@ -174,9 +174,9 @@ class SupervisedTrainer(object):
                                                     "step_{}.pkl".format(step_cnt))
                         torch.save(self.teacher_model.state_dict(), model_name)
                     else:
-                        purity_score, nmi_score, ari_score, shen_f_score, accuracy_k = self.evaluate(dev_loader, step_cnt)
-                        log_msg = "purity_score: {}, nmi_score: {}, ari_score: {}, shen_f_score: {}, accuracy_k: {}".format(
-                            round(purity_score, 4), round(nmi_score, 4), round(ari_score, 4), round(shen_f_score, 4), round(accuracy_k, 4))
+                        purity_score, nmi_score, ari_score, shen_f_score, accuracy_k, difference_k = self.evaluate(dev_loader, step_cnt)
+                        log_msg = "purity_score: {}, nmi_score: {}, ari_score: {}, shen_f_score: {}, accuracy_k: {}, difference_k： {}".format(
+                            round(purity_score, 4), round(nmi_score, 4), round(ari_score, 4), round(shen_f_score, 4), round(accuracy_k, 4), round(difference_k, 4))
                         self.logger.info(log_msg)
 
                         model_name = os.path.join(constant.save_model_path, "model_{}".format(self.current_time), \
@@ -271,6 +271,7 @@ class SupervisedTrainer(object):
         truth_labels = []
         count_k = 0
         correct_k = 0
+        difference = 0
         with torch.no_grad():
             for batch in test_loader:
                 batch_utterances, utterance_sequence_length, conversation_length_list, padded_labels, padded_speakers, _, _ = batch
@@ -297,6 +298,7 @@ class SupervisedTrainer(object):
                     gold_k = (torch.max(padded_labels[i]) + 1).item()
                     if gold_k == k_val:
                         correct_k = correct_k + 1
+                    difference = difference + np.abs(gold_k - k_val)
                     count_k = count_k + 1
 
                     print("cluster_number", k_val)
@@ -347,8 +349,9 @@ class SupervisedTrainer(object):
         shen_f_score = utils.compare(predicted_labels, truth_labels, 'shen_f')
 
         accuracy_k = correct_k / count_k
+        difference_k = difference / count_k
 
-        return purity_score, nmi_score, ari_score, shen_f_score, accuracy_k
+        return purity_score, nmi_score, ari_score, shen_f_score, accuracy_k, difference_k
 
 
     def test(self, test_loader, model_path, step_cnt):
@@ -359,6 +362,7 @@ class SupervisedTrainer(object):
         truth_labels = []
         count_k = 0
         correct_k = 0
+        difference = 0
         with torch.no_grad():
             for batch in tqdm(test_loader):
                 # Adjusted
@@ -389,6 +393,7 @@ class SupervisedTrainer(object):
                     gold_k = (torch.max(padded_labels[i]) + 1).item()
                     if gold_k == k_val:
                         correct_k = correct_k + 1
+                    difference = difference + np.abs(gold_k - k_val)
                     count_k = count_k + 1
                     cluster_label = KMeans(n_clusters=k_val, random_state=0).fit(dialogue_embedding.cpu().detach().numpy()).labels_
                     cluster_label = utils.order_cluster_labels(cluster_label.tolist())
@@ -414,9 +419,10 @@ class SupervisedTrainer(object):
         ari_score = utils.compare(predicted_labels, truth_labels, 'ARI')
         shen_f_score = utils.compare(predicted_labels, truth_labels, 'shen_f')
         accuracy_k = correct_k / count_k
+        difference_k = difference / count_k
 
-        log_msg = "purity_score: {}, nmi_score: {}, ari_score: {}, shen_f_score: {}, accuracy_k: {}".format(
-                        round(purity_score, 4), round(nmi_score, 4), round(ari_score, 4), round(shen_f_score, 4), round(accuracy_k, 4))
+        log_msg = "purity_score: {}, nmi_score: {}, ari_score: {}, shen_f_score: {}, accuracy_k: {}, difference_k: {}".format(
+                        round(purity_score, 4), round(nmi_score, 4), round(ari_score, 4), round(shen_f_score, 4), round(accuracy_k, 4), round(difference_k, 4))
         print(log_msg)
 
 
