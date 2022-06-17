@@ -1,3 +1,4 @@
+from cProfile import label
 from itertools import count
 import torch
 import torch.nn as nn
@@ -303,7 +304,8 @@ class SupervisedTrainer(object):
 
                     print("cluster_number", k_val)
                     
-                    cluster_label = KMeans(n_clusters=k_val, random_state=0).fit(dialogue_embedding.cpu().detach().numpy()).labels_
+                    # cluster_label = KMeans(n_clusters=k_val, random_state=0).fit(dialogue_embedding.cpu().detach().numpy()).labels_
+                    cluster_label = self.cisir_clustering(dialogue_embedding, conversation_length_list[i], conversation_length_list[i]//10, 0.1)
                     
                     print("cluster_label before ordering", cluster_label)
                     
@@ -395,7 +397,8 @@ class SupervisedTrainer(object):
                         correct_k = correct_k + 1
                     difference = difference + np.abs(gold_k - k_val)
                     count_k = count_k + 1
-                    cluster_label = KMeans(n_clusters=k_val, random_state=0).fit(dialogue_embedding.cpu().detach().numpy()).labels_
+                    # cluster_label = KMeans(n_clusters=k_val, random_state=0).fit(dialogue_embedding.cpu().detach().numpy()).labels_
+                    cluster_label = self.cisir_clustering(dialogue_embedding, conversation_length_list[i], conversation_length_list[i]//10, 0.1)
                     cluster_label = utils.order_cluster_labels(cluster_label.tolist())
                     predicted_labels.append(cluster_label)
                 
@@ -446,3 +449,54 @@ class SupervisedTrainer(object):
             # else:
             #     generated_labels[i, :conversation_length_list[i]] = torch.cuda.LongTensor(cluster_label)
         return generated_labels.to(device), np.array(cluster_numbers)
+
+
+    def cisir_clustering(self, dialogue_embedding, length, rank_thd, score_thd, T=constant.dialogue_max_length):
+        if rank_thd < 1:
+            return np.arange(length)
+
+        s = torch.zeros(length, length).float().to(self.device)
+        for i in range(length):
+            s[i][i] = 1000000
+            for j in range(i + 1, length):
+                s[i][j] = torch.square(dialogue_embedding[i] - dialogue_embedding[j])
+                s[j][i] = s[i][j] 
+        # s = torch.matmul(dialogue_embedding.T, dialogue_embedding)
+        sorted, indices = torch.sort(s, dim=1)
+        sorted = sorted[:, :rank_thd]
+        indices = indices[:, :rank_thd]
+        print("sorted", sorted)
+        print("indices", indices)
+
+        # adja_matrix = torch.LongTensor(length, length).fill_(0).to(self.device)
+        # for i in range(length):
+        #     for k in range(min(rank_thd, length)):
+        #         if sorted[i][k] > score_thd:
+        #             break
+        #         adja_matrix[i][indices[i][k]]
+        
+        labels = torch.LongTensor(length).fill_(-1).to(self.device)
+        count = 0
+        
+        for i in range(length):
+            is_connected = False
+            if labels[i] >= 0:
+                is_connected = True
+            else:
+                labels[i] = count
+            for score, j in zip(sorted, indices):
+                if score > score_thd:
+                    break
+                if labels[j] < 0:
+                    labels[j] = labels[i]
+                else:
+                    new_label = torch.min(labels[i], labels[j])
+                    for k in range(length):
+                        if labels[k] == labels[i] or labels[k] == labels[j]:
+                            labels[k] = new_label
+                    is_connected = True
+    
+            if not is_connected:
+                count = count + 1
+        assert torch.max(labels).item() == count
+        return labels.detach().cpu().numpy()
