@@ -408,8 +408,8 @@ class PrototypeKmeansDivergence(nn.Module):
             # print("Checkpoint 5 prototypes", prototypes)
 
             dialogue_cpu = dialogue.cpu().detach().numpy()
-            # k_val =  (torch.argmax(k_prob[i, :dialogue_lengths[i]]) + 1).item()
-            k_val = label_range
+            k_val =  (torch.argmax(k_prob[i, :dialogue_lengths[i]]) + 1).item()
+            # k_val = label_range
             k_means = KMeans(n_clusters=k_val, random_state=0).fit(dialogue_cpu)
 
             prototypes_numpy = prototypes.cpu().detach().numpy()
