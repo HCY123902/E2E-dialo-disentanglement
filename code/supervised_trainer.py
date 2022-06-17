@@ -459,14 +459,14 @@ class SupervisedTrainer(object):
         for i in range(length):
             s[i][i] = 1000000
             for j in range(i + 1, length):
-                s[i][j] = torch.square(dialogue_embedding[i] - dialogue_embedding[j])
+                s[i][j] = torch.sum(torch.square(dialogue_embedding[i] - dialogue_embedding[j]))
                 s[j][i] = s[i][j] 
         # s = torch.matmul(dialogue_embedding.T, dialogue_embedding)
         sorted, indices = torch.sort(s, dim=1)
         sorted = sorted[:, :rank_thd]
         indices = indices[:, :rank_thd]
-        print("sorted", sorted)
-        print("indices", indices)
+        # print("sorted", sorted)
+        # print("indices", indices)
 
         # adja_matrix = torch.LongTensor(length, length).fill_(0).to(self.device)
         # for i in range(length):
@@ -476,27 +476,27 @@ class SupervisedTrainer(object):
         #         adja_matrix[i][indices[i][k]]
         
         labels = torch.LongTensor(length).fill_(-1).to(self.device)
-        count = 0
         
         for i in range(length):
             is_connected = False
             if labels[i] >= 0:
                 is_connected = True
             else:
-                labels[i] = count
-            for score, j in zip(sorted, indices):
+                labels[i] = torch.max(labels).item() + 1
+            for score, j in zip(sorted[i, :], indices[i, :]):
                 if score > score_thd:
                     break
                 if labels[j] < 0:
                     labels[j] = labels[i]
-                else:
+                elif labels[i] != labels[j]:
                     new_label = torch.min(labels[i], labels[j])
                     for k in range(length):
                         if labels[k] == labels[i] or labels[k] == labels[j]:
                             labels[k] = new_label
+
                     is_connected = True
-    
-            if not is_connected:
-                count = count + 1
-        assert torch.max(labels).item() == count
+        if torch.max(labels).item() + 1 > constant.state_num:
+            print("Generated result with {} clusters".format(torch.max(labels).item() + 1))
+
         return labels.detach().cpu().numpy()
+
