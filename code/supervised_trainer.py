@@ -305,7 +305,7 @@ class SupervisedTrainer(object):
                     print("cluster_number", k_val)
                     
                     # cluster_label = KMeans(n_clusters=k_val, random_state=0).fit(dialogue_embedding.cpu().detach().numpy()).labels_
-                    cluster_label = self.cisir_clustering(dialogue_embedding, conversation_length_list[i], conversation_length_list[i]//10, 0.1)
+                    cluster_label = self.cisir_clustering(dialogue_embedding, conversation_length_list[i], 5, 0.5)
                     
                     print("cluster_label before ordering", cluster_label)
                     
@@ -398,7 +398,7 @@ class SupervisedTrainer(object):
                     difference = difference + np.abs(gold_k - k_val)
                     count_k = count_k + 1
                     # cluster_label = KMeans(n_clusters=k_val, random_state=0).fit(dialogue_embedding.cpu().detach().numpy()).labels_
-                    cluster_label = self.cisir_clustering(dialogue_embedding, conversation_length_list[i], conversation_length_list[i]//10, 0.1)
+                    cluster_label = self.cisir_clustering(dialogue_embedding, conversation_length_list[i], 5, 0.5)
                     cluster_label = utils.order_cluster_labels(cluster_label.tolist())
                     predicted_labels.append(cluster_label)
                 
@@ -463,8 +463,8 @@ class SupervisedTrainer(object):
                 s[j][i] = s[i][j] 
         # s = torch.matmul(dialogue_embedding.T, dialogue_embedding)
         sorted, indices = torch.sort(s, dim=1)
-        sorted = sorted[:, :rank_thd]
-        indices = indices[:, :rank_thd]
+        sorted = sorted[:, :min(length-1, rank_thd)]
+        indices = indices[:, :min(length-1, rank_thd)]
         # print("sorted", sorted)
         # print("indices", indices)
 
