@@ -23,7 +23,6 @@ import constant
 random.seed(constant.seed)
 torch.manual_seed(constant.seed)
 
-# os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 os.environ['OMP_NUM_THREADS'] = '8'
 os.environ['MKL_NUM_THREADS'] = '8'
 torch.set_num_threads(8)
@@ -61,10 +60,7 @@ def train(args):
                                     rw='w', input_obj=dev_labels)
      
     train_dataloader = TrainDataLoader(all_utterances, labels, word_dict, speakers, mentions, train_mode = args.train_mode)
-    if args.add_noise:
-        noise_train_dataloader = TrainDataLoader(all_utterances, labels, word_dict, speakers, mentions, add_noise=True)
-    else:
-        noise_train_dataloader = None
+
     dev_dataloader = TrainDataLoader(dev_utterances, dev_labels, word_dict, dev_speakers, dev_mentions, name='dev', train_mode = args.train_mode)
     
     logger_name = os.path.join(constant.log_path, "{}.txt".format(current_time))
@@ -73,32 +69,17 @@ def train(args):
     logger = logging.getLogger()
     global log_head
     log_head = log_head + "Training Model: {}; ".format(args.model)
-    if args.add_noise:
-        log_head += "Add Noise: True; "
     logger.info(log_head)
-    
-    
-    if args.model == 'T':
-        ensemble_model_bidirectional = EnsembleModel(word_dict, word_emb=word_emb, bidirectional=True)
-    elif args.model == 'TS':
-        ensemble_model_bidirectional = EnsembleModel(word_dict, word_emb=None, bidirectional=True)
-    else:
-        ensemble_model_bidirectional = None
-    if args.model == 'TS':
-        ensemble_model_bidirectional.load_state_dict(torch.load(args.model_path))
 
-    # Adjusted
     ensemble_model = EnsembleModel(word_dict, word_emb=word_emb, bidirectional=True)
 
     if torch.cuda.is_available():
         ensemble_model.cuda()
-        if args.model == 'T' or args.model == 'TS':
-            ensemble_model_bidirectional.cuda()
 
-    supervised_trainer = SupervisedTrainer(args, ensemble_model, teacher_model=ensemble_model_bidirectional, \
+    supervised_trainer = SupervisedTrainer(args, ensemble_model, \
                                                 logger=logger, current_time=current_time)
     
-    supervised_trainer.train(train_dataloader, noise_train_dataloader, dev_dataloader)
+    supervised_trainer.train(train_dataloader, dev_dataloader)
 
 
 def test(args):
@@ -134,9 +115,6 @@ def test(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--mode', type=str, default='train')
-    parser.add_argument('--model', type=str, default='S', \
-                            help="'T' for teacher training, 'S' for single model training,'TS' for teacher-student training")
-    parser.add_argument('--add_noise', type=ast.literal_eval, default=False)
     parser.add_argument("--save_input", action='store_true')
     parser.add_argument("--load_var", action='store_true')
     parser.add_argument('--glove_loc', type=str, default=constant.glove_path)

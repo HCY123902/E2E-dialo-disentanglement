@@ -10,9 +10,9 @@ import json
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Convert a conversation graph to a set of connected components (i.e. threads).')
-    parser.add_argument('--raw_list', help='List of raw text documents containing the raw log content as <filename>:...')
-    parser.add_argument('--cluster', help='File containing the cluster content as <filename>:...')
-    parser.add_argument('--result', help='File containing the cluster content as <filename>:...')
+    parser.add_argument('--raw_list', help='Path to the text file that contains the list of paths of raw text documents in a particular split')
+    parser.add_argument('--cluster', help='Path to the file containing the cluster content of a particular split')
+    parser.add_argument('--result', help='Path of the resulting json')
 
     args = parser.parse_args()
 
@@ -69,20 +69,21 @@ if __name__ == '__main__':
             cluster_map = {}
             for j in range(i, i + number_of_sample_turns):
                 turn_text = text[time][j]
-                if turn_text[:3] == "===":
-                    # Discard system message
-                    continue
 
                 if turn_text[0] != "<":
                     print(turn_text)
                     continue
+                
+                if turn_text[:3] == "===":
+                    label = turn_to_cluster_map[j] - start_cluster
+                    sample.append({"speaker": "system", "utterance": turn_text[3:], "label": label})
+                else:
+                    speaker_turn_text = turn_text.split(">", 1)
+                    speaker = speaker_turn_text[0][1:]
 
-                speaker_turn_text = turn_text.split(">", 1)
-                speaker = speaker_turn_text[0][1:]
-
-                turn_text = speaker_turn_text[1].strip()
-                label = turn_to_cluster_map[j] - start_cluster
-                sample.append({"speaker": speaker, "utterance": turn_text, "label": label})
+                    turn_text = speaker_turn_text[1].strip()
+                    label = turn_to_cluster_map[j] - start_cluster
+                    sample.append({"speaker": speaker, "utterance": turn_text, "label": label})
 
                 if turn_to_cluster_map[j] not in cluster_map:
                     cluster_map[turn_to_cluster_map[j]] = 1
@@ -105,15 +106,3 @@ if __name__ == '__main__':
     print("The average cluster number is {}".format(average_cluster_number))
 
     json.dump(dialogues, result)
-
-        # for _, _, cluster in sortable_clusters:
-        #     #print(cluster)
-        #     if len(cluster) <= 1:
-        #         continue
-        #     dialog = " __eou__ ".join(map(lambda num: text[time][num], cluster))
-        #     result.write("{} __eou__\n".format(dialog))
-            # for i, num in enumerate(cluster[1:-1]):
-            #     dialog = dialog + " __eou__ " + text[time][num]
-            #     result.write("{}\t{}\n".format(dialog, text[time][cluster[i + 1]]))
-                #print(text[time][num])
-            #print()

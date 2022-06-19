@@ -1,7 +1,10 @@
 seed = 5
 utterance_max_length = 50
 dialogue_max_length = 50
-state_num = 16
+
+dataset = 'irc'
+
+state_num = 16 if dataset == 'irc' else 6
 
 PAD_ID = 0
 UNK_ID = 1
@@ -17,10 +20,8 @@ attention_size = 300 if not adopt_speaker else 300 + dialogue_max_length
 
 batch_size = 16
 learning_rate = 5e-5
-total_noise_ratio = 0.2
-noise_ratio = 0.05
 
-exp_name = "run_41_entire_set_with_matching_lr_5e-5_epoch_7_mlp_supervised_adjust_model"
+exp_name = "run_1"
 
 save_input_path = "./input_saving/"
 log_path = "./log/{}/".format(exp_name)

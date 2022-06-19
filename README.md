@@ -1,10 +1,13 @@
-# End-to-End-Transition-Based-Online-Dialogue-Disentanglement
+# Conversation Disentanglement with Bi-Level Contrastive Learning
 
-Source code and dataset for the IJCAI 2020 paper "End-to-End Transition-Based Online Dialogue Disentanglement", which aims to solve the problem of dialogue disentanglement in an end-to-end manner. This work achieves better results comparing with all the previous methods, which mostly adopt a two-step architecture. You can download the paper from [here](https://www.ijcai.org/proceedings/2020/0535.pdf).
+## Environment
+
+The model is run with Python
 
 ## Dataset
 
-Our proposed Movie Dialogue Dataset is contained in the ``dataset/`` folder. 
+The Dataset needs to be placed in the ``dataset/`` folder.
+
 The format of each sample is as:
 
 	[["speaker": "xxx", "utterance": "xxx", "label": "x"], 
@@ -12,41 +15,19 @@ The format of each sample is as:
 
 For each utterance, "speaker" indicates the speaker of the utterance (which is not used in this work), and "utterance" is the content of the current utterance. "label" indicates which session the current utterance belongs to.
 
+To run with the Ubuntu IRC dataset, parse the original Ubuntu IRC dataset with the script ``parse.py`` in ``./parse/``, and after placing the parsed json in the ``./dataset``, set ``dataset = 'irc'`` in ``constant.py``. To run with the Movie Script dataset, set ``dataset = 'movie'`` in ``constant.py``
+
 ## Code
 
 The code for our proposed end-to-end framework is contained in the ``code/`` folder.
 
-Before you run the code, you have to specify some hyperparameters and some file paths in the file ``constant.py`` .
+Before you run the code, you have to specify some hyperparameters and some file paths in the file ``constant.py``. Additionally, you will need to create a folder ``./glove`` and place ``glove.840B.300d.txt`` in it.
 
 You can train the model by the following command:
 
-	python main.py --mode train --model S --save_input --device [cpu or gpu index]
+	python main.py --mode train --save_input --device [cpu or gpu index]
 
 After training the model, the test command is:
 
-	python main.py --mode test --model S --save_input --model_path [path to the model you want to test] --device [cpu or gpu index]
-
-## Reference
-
-Please cite the paper in the following format if you use this dataset during your research.
-
-	@inproceedings{ijcai2020-535,
-      title     = {End-to-End Transition-Based Online Dialogue Disentanglement},
-      author    = {Liu, Hui and Shi, Zhan and Gu, Jia-Chen and Liu, Quan and Wei, Si and Zhu, Xiaodan},
-      booktitle = {Proceedings of the Twenty-Ninth International Joint Conference on
-                   Artificial Intelligence, {IJCAI-20}},
-      publisher = {International Joint Conferences on Artificial Intelligence Organization},             
-      editor    = {Christian Bessiere}  
-      pages     = {3868--3874},
-      year      = {2020},
-      month     = {7},
-      note      = {Main track}
-      doi       = {10.24963/ijcai.2020/535},
-      url       = {https://doi.org/10.24963/ijcai.2020/535},
-    }
-
-
-## Miscellaneous
-
-If you find any problem about the code, please leave an issue or shoot me an email.
+	python main.py --mode test --save_input --model_path [path to the model you want to test] --device [cpu or gpu index]
 

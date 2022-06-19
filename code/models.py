@@ -17,12 +17,6 @@ class EnsembleModel(nn.Module):
         self.attentive_encoder = SelfAttentiveEncoder()
         self.conversation_encoder = ConversationEncoder(bidirectional=bidirectional, n_layers=1, dropout=0, rnn_cell='lstm')
         self.conversation_attentive_encoder = ConversationAttentiveEncoder()
-        # self.session_encoder = SessionEncoder(bidirectional=bidirectional, n_layers=1, dropout=0, rnn_cell='lstm')
-        # self.state_matrix_encoder = StateMatrixEncoder()
-        # if bidirectional:
-        #     self.scores_calculator = ScoresCalculator(softmax_func=nn.Softmax, teacher=True)
-        # else:
-        #     self.scores_calculator = ScoresCalculator(softmax_func=nn.LogSoftmax)
         self.k_predictor = torch.nn.Sequential(
             torch.nn.Linear(constant.attention_size + 2, 128),
             torch.nn.ReLU(),
@@ -41,16 +35,6 @@ class EnsembleModel(nn.Module):
 
         # [batch_size, max_conversation_length, hidden_size]
         conversation_repre = self.conversation_encoder(attentive_repre)
-        # # [batch_size, max_conversation_length, hidden_size]
-        # session_repre = self.session_encoder(attentive_repre, session_transpose_matrix)
-        # # [batch_size, 4, max_session_length, hidden_size]
-        # state_matrix = self.state_matrix_encoder(attentive_repre, conversation_repre, session_repre, state_transition_matrix, \
-        #                 max_conversation_length)
-        # # [batch_size, max_conversation_length, 5, hidden_size] 
-        # softmax_masked_scores = self.scores_calculator(state_matrix, attentive_repre, conversation_repre, max_conversation_length)
-        # # [batch_size, max_conversation_length, 5]
-        # return softmax_masked_scores
-
         batch_size = attentive_repre.size(0)
 
         if constant.adopt_speaker:
@@ -58,7 +42,6 @@ class EnsembleModel(nn.Module):
     
         # k_logtis = self.k_predictor(torch.cat((self.pad_dialogue(attentive_repre).reshape(batch_size, -1), self.pad_speaker(padded_speakers)), dim=1))
         conversation_attention = self.conversation_attentive_encoder(batch_utterances, conversation_repre, shape)
-        # num_speakers = (torch.max(padded_speakers, dim=1, keepdim=True)[0] + 1).to(self.device, dtype=torch.float)
         num_speakers = torch.sum((torch.sum(padded_speakers, dim=1) != 0), dim=1, keepdim=True).to(self.device, dtype=torch.float)
         conversation_len = torch.tensor(conversation_lengths).unsqueeze(1).to(self.device, dtype=torch.float)
         k_logits = self.k_predictor(torch.cat((conversation_attention, num_speakers, conversation_len), dim=1))
@@ -70,9 +53,6 @@ class EnsembleModel(nn.Module):
 
     def pad_dialogue(self, attentive_repre):
         s = attentive_repre.size()
-        # padded = torch.zeros((s[0], constant.dialogue_max_length, constant.utterance_max_length), dtype=torch.float, requires_grad=True).to(self.device)
-        
-        # padded[:s[0], :s[1], :s[2]] = attentive_repre
         padded = F.pad(attentive_repre, (0, constant.utterance_max_length - s[2], 0, constant.dialogue_max_length - s[1]), "constant", 0)
         return padded
 
@@ -190,28 +170,16 @@ class ConversationAttentiveEncoder(nn.Module):
         self.softmax = nn.Softmax(dim=1)
 
     def forward(self, inp, lstm_output, shape):
-        # print(lstm_output.size())
-
         alphas = self.ws2(self.tanh(self.ws1(lstm_output))).squeeze(2) # [batch_size, max_conversation_length, 1] -> [batch_size, max_conversation_length]
-
         transformed_inp = inp[:, :, 0] # [batch_size, max_conversation_length]
-
-        # print(alphas.size())
-        # print(transformed_inp.size())
 
         penalized_alphas = alphas + (
             -10000 * (transformed_inp == constant.PAD_ID).float())
-            # [batch_size, max_conversation_length] + [batch_size, max_conversation_length]
-        # print(penalized_alphas.size())
 
         alphas = (self.softmax(penalized_alphas)).unsqueeze(1)  # [batch_size, 1, max_conversation_length]
 
-        # print(alphas.size())
-
         # [batch_size, 1, max_conversation_length] * [batch_size, max_conversation_length, hidden_size] -> [batch_size, hidden_size]
         ret_output = torch.bmm(alphas, lstm_output).squeeze()
-        # print(ret_output.size())
-
         return ret_output
 
 class SessionEncoder(nn.Module):
@@ -244,89 +212,5 @@ class SessionEncoder(nn.Module):
         # output: [batch_size*4, max_session_length, hidden_size]
         output = output.view(batch_size, constant.state_num-1, int(max_conversation_length/(constant.state_num-1)), constant.hidden_size)
         return output
-
-
-class StateMatrixEncoder(nn.Module):
-    def __init__(self, pooling=nn.AvgPool2d):
-        super(StateMatrixEncoder, self).__init__()
-        self.new_state_projection = nn.Sequential(
-            nn.Linear(constant.hidden_size*2, constant.hidden_size), 
-            nn.ReLU()
-        )
-        self.pooling = pooling((constant.state_num-1, 1))
-    
-    def build_state_matrix(self, state_matrix, session_repre, conversation_repre, state_transition_matrix, \
-                                    batch_size, max_conversation_length):
-        # state_matrix: [batch_size, max_conversation_length, 5, hidden_size]
-        # session_repre: [batch_size, 4, max_session_length, hidden_size]
-        # state_transition_matrix: [batch_size, max_conversation_length, 5]
-        for batch_index in range(batch_size):
-            for i in range(max_conversation_length):
-                one_res = []
-                for j in range(constant.state_num):
-                    if state_transition_matrix[batch_index][i][j] != -1:
-                        if state_transition_matrix[batch_index][i][j] != 0:
-                            position = state_transition_matrix[batch_index][i][j] - 1
-                            state_matrix[batch_index][i][j] = session_repre[batch_index][j-1][position]
-                            one_res.append(session_repre[batch_index][j-1][position].unsqueeze(0))
-                    else:
-                        one_res.append(state_matrix[batch_index][i-1][j].unsqueeze(0))
-                one_res = self.pooling(torch.cat(one_res, dim=0).unsqueeze(0))[0][0]
-                # [hidden_size]
-                if i == 0:
-                    conversation_state = conversation_repre[batch_index][i]
-                else:
-                    conversation_state = conversation_repre[batch_index][i-1]
-                state_matrix[batch_index][i][0] = self.new_state_projection(
-                    torch.cat([one_res, conversation_state], dim=0)
-                )
-        return state_matrix
-    
-    def forward(self, utterance_repre, conversation_repre, session_repre, \
-                    state_transition_matrix, max_conversation_length):
-        # utterance_repre: [batch_size, max_conversation_length, hidden_size]
-        # conversation_repre: [batch_size, max_conversation_length, hidden_size]
-        # session_repre: [batch_size, 4, max_session_length, hidden_size]
-        batch_size, _, hidden_size = utterance_repre.size()
-        # state_matrix = torch.randn([batch_size, max_conversation_length, 5, hidden_size])
-        shape = torch.Size([batch_size, max_conversation_length, constant.state_num, hidden_size])
-        if torch.cuda.is_available():
-            state_matrix = torch.cuda.FloatTensor(shape).zero_()
-        else:
-            state_matrix = torch.FloatTensor(shape).zero_()
-        # state_matrix = torch.randn(shape, out=state_matrix)
-        state_matrix = self.build_state_matrix(state_matrix, session_repre, conversation_repre, state_transition_matrix, \
-                                                    batch_size, max_conversation_length)
-        return state_matrix
-
-
-class ScoresCalculator(nn.Module):
-    def __init__(self, softmax_func=nn.LogSoftmax, teacher=False):
-        super(ScoresCalculator, self).__init__()
-        self.softmax_func = softmax_func(dim=2)
-        self.teacher = teacher
-        self.utterance_projection = nn.Sequential(
-            nn.Linear(constant.hidden_size*2, constant.hidden_size), 
-            nn.ReLU()
-        )
-
-    def forward(self, state_matrix, utterance_repre, conversation_repre, max_conversation_length):
-        # state_matrix: [batch_size, max_conversation_length, 5, hidden_size]
-        # utterance_repre: [batch_size, max_conversation_length, hidden_size]
-        # conversation_repre: [batch_size, max_conversation_length, hidden_size]
-        # loss_mask: [batch_size, max_conversation_length, 5]
-        utterance_concat = torch.cat((utterance_repre[:, :max_conversation_length, :], \
-                                    conversation_repre[:, :max_conversation_length, :]), 2)
-        utterance_projected = self.utterance_projection(utterance_concat)
-        # [batch_size, max_conversation_length, hidden_size]
-
-        scores = torch.matmul(state_matrix, utterance_projected.unsqueeze(3)).squeeze()
-        # scores: [batch_size, max_conversation_length, 5]
-        softmax_masked_scores = self.softmax_func(scores)
-        if self.teacher:
-            log_softmax_scores = nn.LogSoftmax(dim=2)(scores)
-            return softmax_masked_scores, log_softmax_scores
-        else:
-            return softmax_masked_scores
 
 

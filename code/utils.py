@@ -14,8 +14,6 @@ from sklearn.cluster import KMeans
 
 import constant
 
-# Added
-import faiss
 import kmeans_pytorch
 
 import warnings
@@ -86,7 +84,6 @@ def build_embedding_matrix(word_dict, glove_loc=None, emb_loc=None, load_emb=Fal
     print("Building word embeding matrix over.")
     return word_emb
 
-
 def convert_utterances(utterances, word_dict):
     utterances_num = []
     utterance_sequence_length = [] # Sequence length of the batch
@@ -102,183 +99,6 @@ def convert_utterances(utterances, word_dict):
         utterances_num.append(one_instance)
         utterance_sequence_length.append(one_uttr_sequence_length)
     return utterances_num, utterance_sequence_length
-
-
-def padding_batch(utterances_num, labels, max_session_length, max_utterance_length, utterance_sequence_length):
-    new_utterance_num = copy.deepcopy(utterances_num)
-    new_labels = copy.deepcopy(labels)
-    new_utterance_sequence_length = copy.deepcopy(utterance_sequence_length)
-    # conversation_sequence_length = [len(x) for x in utterances_num]
-    
-    for i in range(len(new_utterance_num)):
-        for j in range(len(new_utterance_num[i])):
-            token_padding_num = max_utterance_length-len(new_utterance_num[i][j])
-            for _ in range(token_padding_num):
-                new_utterance_num[i][j].append(constant.PAD_ID)
-        
-        session_length_count = dict(Counter(labels[i]))
-        # matrix_padding_part = []
-        for j in range(constant.state_num-1):
-            padding_num_j = max_session_length - session_length_count.get(j, 0)
-            for _ in range(padding_num_j):
-                empty_mat = [constant.PAD_ID] * max_utterance_length
-                new_utterance_num[i].append(empty_mat)
-                new_labels[i].append(j)
-                new_utterance_sequence_length[i].append(1)
-
-    new_utterance_num_numpy = np.asarray(new_utterance_num)
-    new_utterance_sequence_length = np.asarray(new_utterance_sequence_length)
-    # conversation_sequence_length = np.asarray(conversation_sequence_length)
-    new_labels = np.asarray(new_labels)
-    return new_utterance_num_numpy, new_labels, new_utterance_sequence_length
-
-
-def build_state_transition_matrix(labels, max_conversation_length):
-    batch_size = len(labels)
-    matrix = []
-    for i in range(batch_size):
-        one_instance_label = labels[i]
-        state = (np.zeros([max_conversation_length, constant.state_num], dtype=np.int)-1).tolist()
-        label_dict = {i:0 for i in range(constant.state_num-1)}
-        for j in range(len(one_instance_label)):
-            state[j][0] = 0
-            for k in range(constant.state_num-1):
-                if label_dict[k] != 0:
-                    state[j][k+1] = label_dict[k]
-            label_dict[one_instance_label[j]] += 1
-        matrix.append(state)
-    matrix = np.asarray(matrix)
-    return matrix
-
-
-def get_session_sequence_length(labels):
-    session_sequence_length = []
-    for item in labels:
-        one_length = [0] * (constant.state_num - 1)
-        for one_label in item:
-            one_length[one_label] += 1
-        session_sequence_length.append(one_length)
-    session_sequence_length = np.asarray(session_sequence_length)
-    return session_sequence_length
-
-
-def reorder_session(labels):
-    # labels： [batch_size, conversation_max_length]
-    reverse_dict = dict()
-    cnt = 0
-    batch_size, max_conversation_length = labels.shape
-    for batch_index in range(batch_size):
-        for j in range(constant.state_num):
-            for i in range(len(labels[batch_index])):
-                if labels[batch_index][i] == j:
-                    reverse_dict[cnt] = batch_index*max_conversation_length+i
-                    cnt += 1
-    
-    transpose_matrix = []
-    for i in range(len(reverse_dict)):
-        transpose_matrix.append(reverse_dict[i])
-    assert len(transpose_matrix) == batch_size * max_conversation_length
-    return transpose_matrix
-
-
-def get_loss_labels(new_labels):
-    labels = []
-    for i in range(len(new_labels)):
-        one_label = []
-        for j in range(len(new_labels[i])):
-            if j == 0:
-                one_label.append(0)
-            elif j != 0 and new_labels[i][j] != new_labels[i][j-1]:
-                if new_labels[i][j] not in new_labels[i][:j]:
-                    one_label.append(0)
-                else:
-                    one_label.append(new_labels[i][j] + 1)
-            elif j != 0 and new_labels[i][j] == new_labels[i][j-1]:
-                one_label.append(new_labels[i][j] + 1)
-        labels.append(one_label)
-    labels = np.asarray(labels)
-    return labels
-
-
-def add_noise_to_data(labels):
-    noise_labels = []
-    for batch_index in range(len(labels)):
-        if random.random() < constant.total_noise_ratio:
-            one_label = []
-            index = [i for i in range(len(labels[batch_index]))]
-            random.shuffle(index)
-            index = index[:int(len(labels[batch_index])*constant.noise_ratio)]
-            for j in range(len(labels[batch_index])):
-                if j not in index:
-                    one_label.append(labels[batch_index][j])
-                else:
-                    candidate_set = list(set([i for i in range(1,constant.state_num-1)]) -  set([labels[batch_index][j]]))
-                    one_label.append(random.choice(candidate_set))
-            noise_labels.append(one_label)
-        else:
-            noise_labels.append(labels[batch_index])
-    return noise_labels
-
-
-def build_batch(utterances, labels, word_dict, add_noise=False):
-    max_conversation_length = max([len(x) for x in utterances]) # how many utterances in a session
-    max_utterance_length = max([len(x) for one_uttr in utterances for x in one_uttr]) # max utterance length (how many words in a utterance)
-    
-    if add_noise:
-        noise_labels = add_noise_to_data(labels)
-        max_session_length = max([max(Counter(l).values()) for l in noise_labels])
-    else:
-        max_session_length = max([max(Counter(l).values()) for l in labels])
-
-    conversation_lengths = [len(x) for x in utterances]
-    loss_mask = torch.arange(max_conversation_length).expand(len(conversation_lengths), max_conversation_length) \
-                                < torch.Tensor(conversation_lengths).unsqueeze(1)
-    loss_mask = loss_mask.type(torch.int64)
-
-    utterances_num, utterance_sequence_length = convert_utterances(utterances, word_dict)
-    
-    # session length, shape: [batch_size, 4]
-    if add_noise:
-        session_sequence_length = get_session_sequence_length(noise_labels) 
-    else:
-        session_sequence_length = get_session_sequence_length(labels) 
-    
-    # The state for a training case. Showing which of lstm state should be copied to the state matrix
-    # [batch_size, max_conversation_length, 5]
-    if add_noise:
-        state_transition_matrix = build_state_transition_matrix(noise_labels, max_conversation_length)
-    else:
-        state_transition_matrix = build_state_transition_matrix(labels, max_conversation_length)
-
-    # new_utterance_num_numpy: a numpy ndarray for the utterance number
-    # new_labels: the label list after padding
-    # new_utterance_sequence_length: utterance sequence length after padding 
-    if add_noise:
-        new_utterance_num_numpy, noise_new_labels, new_utterance_sequence_length = \
-                        padding_batch(utterances_num, noise_labels, max_session_length, \
-                                                    max_utterance_length, utterance_sequence_length)
-        _, new_labels, _ = padding_batch(utterances_num, labels, max_session_length, max_utterance_length, utterance_sequence_length)
-    else:
-        new_utterance_num_numpy, new_labels, new_utterance_sequence_length = \
-                        padding_batch(utterances_num, labels, max_session_length, \
-                                                    max_utterance_length, utterance_sequence_length)
-
-    if add_noise:   
-        session_transpose_matrix = reorder_session(noise_new_labels)
-    else:
-        session_transpose_matrix = reorder_session(new_labels)
-
-    label_for_loss = get_loss_labels(new_labels)
-
-    if add_noise:
-        return new_utterance_num_numpy, label_for_loss, new_labels, new_utterance_sequence_length, \
-                session_transpose_matrix, state_transition_matrix, session_sequence_length, \
-                    max_conversation_length, loss_mask
-    else:
-        return new_utterance_num_numpy, label_for_loss, new_labels, new_utterance_sequence_length, \
-                session_transpose_matrix, state_transition_matrix, session_sequence_length, \
-                    max_conversation_length, loss_mask
-    
 
 def calculate_purity_scores(y_true, y_pred):
     # compute contingency matrix (also called confusion matrix)
@@ -338,130 +158,6 @@ def compare(predicted_labels, truth_labels, metric):
         return sum(f_scores)/len(f_scores)
 
 
-
-def run_kmeans(x, args):
-    """
-    Args:
-        x: data to be clustered
-    """
-    
-    print('performing kmeans clustering')
-    results = {'im2cluster':[],'centroids':[],'density':[]}
-    
-    for seed, num_cluster in enumerate(args["num_cluster"]):
-        # intialize faiss clustering parameters
-        d = x.shape[1]
-        k = int(num_cluster)
-        clus = faiss.Clustering(d, k)
-        clus.verbose = True
-        clus.niter = 20
-        clus.nredo = 5
-        clus.seed = seed
-        clus.max_points_per_centroid = 1000
-        clus.min_points_per_centroid = 10
-
-        res = faiss.StandardGpuResources()
-        cfg = faiss.GpuIndexFlatConfig()
-        cfg.useFloat16 = False
-        cfg.device = args["gpu"]    
-        index = faiss.GpuIndexFlatL2(res, d, cfg)  
-
-        clus.train(x, index)   
-
-        D, I = index.search(x, 1) # for each sample, find cluster distance and assignments
-        im2cluster = [int(n[0]) for n in I]
-        
-        # get cluster centroids
-        centroids = faiss.vector_to_array(clus.centroids).reshape(k,d)
-        
-        # sample-to-centroid distances for each cluster 
-        Dcluster = [[] for c in range(k)]          
-        for im,i in enumerate(im2cluster):
-            Dcluster[i].append(D[im][0])
-        
-        # concentration estimation (phi)        
-        density = np.zeros(k)
-        for i,dist in enumerate(Dcluster):
-            if len(dist)>1:
-                d = (np.asarray(dist)**0.5).mean()/np.log(len(dist)+10)            
-                density[i] = d     
-                
-        #if cluster only has one point, use the max to estimate its concentration        
-        dmax = density.max()
-        for i,dist in enumerate(Dcluster):
-            if len(dist)<=1:
-                density[i] = dmax 
-
-        density = density.clip(np.percentile(density,10),np.percentile(density,90)) #clamp extreme values for stability
-        density = args["temperature"]*density/density.mean()  #scale the mean to temperature 
-        
-        # convert to cuda Tensors for broadcast
-        centroids = torch.Tensor(centroids).cuda()
-        centroids = nn.functional.normalize(centroids, p=2, dim=1)    
-
-        im2cluster = torch.LongTensor(im2cluster).cuda()               
-        density = torch.Tensor(density).cuda()
-        
-        results['centroids'].append(centroids)
-        results['density'].append(density)
-        results['im2cluster'].append(im2cluster)    
-        
-    return results
-
-# def kmeans(data, k, max_time = 30):
-#     n, m = data.shape
-    
-#     # print("diagloue embedding", data)
-#     # print("diagloue embedding shape", data.shape)
-    
-#     # ini = torch.randint(n, (k,)) #只有一维需要逗号
-    
-#     ini = random.sample(range(n), k)
-    
-#     # print("Initial midpoint position", ini)
-    
-#     midpoint = data[ini]   #随机选择k个起始点
-#     time = 0
-#     last_label = 0
-#     while(time < max_time):
-#         d = data.unsqueeze(0).repeat(k, 1, 1)   #shape k*n*m
-#         mid_ = midpoint.unsqueeze(1).repeat(1,n,1) #shape k*n*m
-        
-#         assert ~torch.any(midpoint.isnan())
-#         #print("time", time, "midpoint", midpoint)
-        
-#         dis = torch.sum((d - mid_)**2, 2)     #计算距离
-        
-#         #print("time", time, "dis", dis)
-        
-#         label = dis.argmin(0)      #依据最近距离标记label
-        
-#         #print("time", time, "label", label)
-        
-#         if torch.sum(label != last_label)==0:  #label没有变化,跳出循环
-#             return label        
-#         last_label = label
-        
-#         start = False
-#         for i in range(k):  #更新类别中心点，作为下轮迭代起始
-#             if i not in label:
-#                 k = k - 1
-#                 #print("{} is not in the label set".format(i))
-#                 continue
-            
-#             kpoint = data[label==i]
-            
-#             # if torch.any(kpoint.isnan()):
-#             #     continue
-            
-#             if not start:
-#                 start = True
-#                 midpoint = kpoint.mean(0).unsqueeze(0)
-#             else:
-#                 midpoint = torch.cat([midpoint, kpoint.mean(0).unsqueeze(0)], 0)
-#         time += 1
-#     return label
-
 def order_cluster_labels(cluster_labels):
     ordered_labels = []
     record = {}
@@ -481,14 +177,8 @@ def calculateK(dialogue_embedding, dialogue_length, method, device):
     if method == 'silhouette':
         scores = []
         for K in range(2, min(dialogue_length - 1, constant.state_num) + 1):
-            # kmeans = KMeans(n_clusters=K, random_state=0)
-
             cluster_ids_x, cluster_centers = kmeans_pytorch.kmeans(X=dialogue_embedding, num_clusters=K, distance='euclidean', device=device, tqdm_flag=False)
             labels = cluster_ids_x.cpu().detach().numpy()
-            
-            # if len(set(labels)) <= 1:
-            #     print("Returning average K as K since there are at most 2 distinct utterance embeddings in this dialogue")
-            #     return average_K
             try:
                 scores.append([K, silhouette_score(dialogue_embedding.cpu().detach().numpy(), labels), labels])
             except Exception as e:
@@ -507,7 +197,6 @@ def calculateK(dialogue_embedding, dialogue_length, method, device):
 
         # Select the K closer to average_K
         scores = [(i[0], np.abs(i[0] - average_K), i[2]) for i in scores[:n]]
-
         m = min(scores, key=lambda x:x[1])
         return m[0], m[2]
 
@@ -518,14 +207,9 @@ def calculateK(dialogue_embedding, dialogue_length, method, device):
         inertia = (torch.square(dialogue_embedding-closest_centers)).sum().item()
         scores.append(np.array([1, inertia, np.zeros(dialogue_length, dtype=int)]))
         for K in range(2, min(dialogue_length, constant.state_num) + 1):
-            # kmeans = KMeans(n_clusters=K, random_state=0)
-            # kmeans.fit(dialogue_embedding)
-
             cluster_ids_x, cluster_centers = kmeans_pytorch.kmeans(X=dialogue_embedding, num_clusters=K, distance='euclidean', device=device, tqdm_flag=False)
             labels = cluster_ids_x.cpu().detach().numpy()
-
             closest_centers = cluster_centers[cluster_ids_x].to(device)
-            # inertia = torch.linalg.norm(dialogue_embedding.cpu()-closest_centers, dim=1, ord=2)
             inertia = (torch.square(dialogue_embedding-closest_centers)).sum().item()
 
             scores.append(np.array([K, inertia, labels]))
@@ -534,12 +218,11 @@ def calculateK(dialogue_embedding, dialogue_length, method, device):
         if n == 1:
             m = min(rate, key=lambda x:x[1])
             return int(m[0]), m[2]
-            
+
         rate.sort(key=lambda x:x[1])
-        
+
         # Select the K closer to average_K
         rate = [(i[0], np.abs(i[0] - average_K), i[2]) for i in rate[:n]]
-
         m = min(rate, key=lambda x:x[1])
         return m[0], m[2]
 

@@ -16,16 +16,12 @@ def extract_input_data(content, mode, train_mode='supervised'):
     print("Tokenizing sentence and word...")
     all_utterances = []
     labels = []
-
-    # Added for speaker
     speakers = []
     mentions = []
 
     for item in tqdm(content):
         utterance_list = []
         label_list = []
-
-        # Added for speaker
         speaker_list = []
         speaker_map = {}
         mention_list = []
@@ -37,7 +33,6 @@ def extract_input_data(content, mode, train_mode='supervised'):
                 uttr_word_list = uttr_word_list[:constant.utterance_max_length]
             label = one_uttr['label']
 
-            # Added for speaker
             speaker = one_uttr['speaker']
             if speaker not in speaker_map:
                 speaker_map[speaker] = len(speaker_map)
@@ -49,7 +44,6 @@ def extract_input_data(content, mode, train_mode='supervised'):
                     mention[speaker_map[s]] = 1 
             mention[speaker] = 1
 
-            # Added for unsupervised training
             if train_mode == 'unsupervised':
                 label = speaker
 
@@ -58,27 +52,17 @@ def extract_input_data(content, mode, train_mode='supervised'):
             utterance_list.append(uttr_word_list)
             mention_list.append(mention.tolist())
 
-            # Added
             if mode == "train":
                 all_utterances.append(copy.deepcopy(utterance_list))
                 labels.append(copy.deepcopy(label_list))
                 speakers.append(copy.deepcopy(speaker_list))
                 mentions.append(copy.deepcopy(mention_list))
-            
-#             if mode != "train" and (len(utterance_list) == 1 or len(utterance_list) == len(item) // 2 or (len(utterance_list) >= len(item) * 0.94 and len(utterance_list) < len(item))):
-#                 all_utterances.append(copy.deepcopy(utterance_list))
-#                 labels.append(copy.deepcopy(label_list))
-#             if mode != "train" and (len(utterance_list) <= 1 or len(utterance_list) == len(item) // 2 or (len(utterance_list) >= len(item) * 0.94 and len(utterance_list) < len(item))):
-            if mode != "train":
-                all_utterances.append(copy.deepcopy(utterance_list))
-                labels.append(copy.deepcopy(label_list))
-                speakers.append(copy.deepcopy(speaker_list))
-                mentions.append(copy.deepcopy(mention_list))
+        if mode != "train":
+            all_utterances.append(copy.deepcopy(utterance_list))
+            labels.append(copy.deepcopy(label_list))
+            speakers.append(copy.deepcopy(speaker_list))
+            mentions.append(copy.deepcopy(mention_list))
 
-        # all_utterances.append(utterance_list)
-        # labels.append(label_list)
-    
-#     if mode == "train":
     zipped_list = [(a, l, s, m) for (a, l, s, m) in zip(all_utterances, labels, speakers, mentions)]
 
     random.shuffle(zipped_list)
