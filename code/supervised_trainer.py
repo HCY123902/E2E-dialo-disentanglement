@@ -68,8 +68,6 @@ class SupervisedTrainer(object):
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
-            # print("NCE:", loss_1.data.item())
-            # print("Prototype:", loss_2.data.item())
             return loss.data.item(), len(batch_utterances)
 
         elif self.args.train_mode == 'unsupervised':
@@ -90,7 +88,6 @@ class SupervisedTrainer(object):
             for i, batch in enumerate(tqdm(train_loader)):
                 step_cnt += 1
                 loss, batch_size = self._train_batch(batch)
-                # loss_student, batch_size, uttr_cnt = self._train_batch(batch)
                 
                 # Added
                 if loss == "skip":
