@@ -73,7 +73,7 @@ class SupervisedTrainer(object):
         elif self.args.train_mode == 'unsupervised':
             loss_1 = self.lu(attentive_repre, conversation_length, padded_labels, pos_mask, sample_mask)
             loss_2 = self.lsp(attentive_repre, conversation_length, padded_labels)
-            loss = constant.lu_weightage * loss_1 + (1 - constant.ls_weightage) * loss_2
+            loss = constant.lu_weightage * loss_1 + (1 - constant.lu_weightage) * loss_2
 
             self.optimizer.zero_grad()
             loss.backward()
