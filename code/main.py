@@ -15,8 +15,7 @@ from data_processing import read_data
 from utils import build_embedding_matrix
 from data_loader import TrainDataLoader
 from supervised_trainer import SupervisedTrainer
-from models import UtteranceEncoder, ConversationEncoder, SessionEncoder, StateMatrixEncoder, \
-                        ScoresCalculator, SelfAttentiveEncoder, EnsembleModel
+from models import UtteranceEncoder, ConversationEncoder, SelfAttentiveEncoder, EnsembleModel
 import constant
 
 
@@ -67,9 +66,6 @@ def train(args):
     LOG_FORMAT = '%(asctime)s %(name)-12s %(levelname)-8s %(message)s'
     logging.basicConfig(format=LOG_FORMAT, level=logging.INFO, filename=logger_name, filemode='w')
     logger = logging.getLogger()
-    global log_head
-    log_head = log_head + "Training Model: {}; ".format(args.model)
-    logger.info(log_head)
 
     ensemble_model = EnsembleModel(word_dict, word_emb=word_emb, bidirectional=True)
 
@@ -120,7 +116,7 @@ if __name__ == "__main__":
     parser.add_argument('--glove_loc', type=str, default=constant.glove_path)
     parser.add_argument('--model_path', type=str, default='')
     parser.add_argument('--device', type=str, default='0')
-    parser.add_argument('--Kmeans_metric', type=str, choices=['silhouette', 'elbow', 'combined'], default='silhouette')
+    parser.add_argument('--Kmeans_metric', type=str, choices=['silhouette', 'elbow', 'combined'], default='elbow')
     parser.add_argument('--print_detail', action='store_true')
     parser.add_argument('--train_mode', type=str, choices=['supervised', 'unsupervised'], default='supervised')
     parser.add_argument('--adopt_speaker', action='store_true')
@@ -137,5 +133,4 @@ if __name__ == "__main__":
 
 
 
-    
     

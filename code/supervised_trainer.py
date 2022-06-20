@@ -192,8 +192,8 @@ class SupervisedTrainer(object):
         assert len(predicted_labels) == len(truth_labels)
         
         for (p, t) in zip(predicted_labels, truth_labels):
-            print(p, len(p))
-            print(t, len(t))
+            # print(p, len(p))
+            # print(t, len(t))
             assert len(p) == len(t)
 
         utils.save_predicted_results(predicted_labels, truth_labels, self.current_time, step_cnt)
