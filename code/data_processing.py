@@ -52,12 +52,6 @@ def extract_input_data(content, mode, train_mode='supervised'):
             utterance_list.append(uttr_word_list)
             mention_list.append(mention.tolist())
 
-            if mode == "train":
-                all_utterances.append(copy.deepcopy(utterance_list))
-                labels.append(copy.deepcopy(label_list))
-                speakers.append(copy.deepcopy(speaker_list))
-                mentions.append(copy.deepcopy(mention_list))
-        if mode != "train":
             all_utterances.append(copy.deepcopy(utterance_list))
             labels.append(copy.deepcopy(label_list))
             speakers.append(copy.deepcopy(speaker_list))
