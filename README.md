@@ -2,11 +2,11 @@
 
 ## Environment
 
-The model is run with Python
+The model is run with python 3.7.11 and pytorch 1.6.0 
 
 ## Dataset
 
-The Dataset needs to be placed in the ``dataset/`` folder.
+The dataset needs to be placed in the ``dataset/`` folder.
 
 The format of each sample is as:
 
