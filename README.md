@@ -15,7 +15,7 @@ The format of each sample is as:
 
 For each utterance, "speaker" indicates the speaker of the utterance (which is not used in this work), and "utterance" is the content of the current utterance. "label" indicates which session the current utterance belongs to.
 
-To run with the Ubuntu IRC dataset, parse the original Ubuntu IRC dataset with the script ``parse.py`` in ``./parse/``, and after placing the parsed json in the ``./dataset``, set ``dataset = 'irc'`` in ``constant.py``. To run with the Movie Script dataset, set ``dataset = 'movie'`` in ``constant.py``
+To run with the Ubuntu IRC dataset, set ``dataset = 'irc'`` in ``constant.py``. To run with the Movie Script dataset, set ``dataset = 'movie'`` in ``constant.py``
 
 ## Code
 
