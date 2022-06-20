@@ -63,7 +63,7 @@ class SupervisedTrainer(object):
             loss_2 = self.ls(attentive_repre, conversation_length, padded_labels)
             loss_3 = self.lm_lk(attentive_repre, conversation_length, padded_labels, k_prob=k_prob)
 
-            loss = constant.NCE_weightage * loss_1 + constant.Prototype_weightage * loss_2 + (1 - constant.NCE_weightage - constant.Prototype_weightage) * loss_3
+            loss = constant.lu_weightage * loss_1 + constant.ls_weightage * loss_2 + (1 - constant.lu_weightage - constant.ls_weightage) * loss_3
 
             self.optimizer.zero_grad()
             loss.backward()
@@ -75,7 +75,7 @@ class SupervisedTrainer(object):
         elif self.args.train_mode == 'unsupervised':
             loss_1 = self.lu(attentive_repre, conversation_length, padded_labels, pos_mask, sample_mask)
             loss_2 = self.lsp(attentive_repre, conversation_length, padded_labels)
-            loss = constant.NCE_weightage * loss_1 + (1 - constant.NCE_weightage) * loss_2
+            loss = constant.lu_weightage * loss_1 + (1 - constant.ls_weightage) * loss_2
 
             self.optimizer.zero_grad()
             loss.backward()
